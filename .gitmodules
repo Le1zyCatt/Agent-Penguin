@@ -1,0 +1,3 @@
+[submodule "m3e-small"]
+	path = m3e-small
+	url = https://huggingface.co/moka-ai/m3e-small
