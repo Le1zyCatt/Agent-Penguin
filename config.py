@@ -1,0 +1,24 @@
+# config.py
+import os
+
+# 项目根目录
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1. 目录路径
+DATA_DIR = os.path.join(BASE_DIR, "data")
+SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
+TEMP_DIR = os.path.join(DATA_DIR, "received_images")
+FONT_PATH = os.path.join(DATA_DIR, "fonts", "simhei.ttf") # 确保你有这个字体
+
+# 2. 向量数据库 (Project B)
+# 注意：你的 vector_db_manager 可能默认读的是相对路径，这里我们显式指定绝对路径会更稳
+VECTOR_DB_PATH = os.path.join(DATA_DIR, "chat_vector_db")
+HISTORY_JSON_DIR = os.path.join(DATA_DIR, "history_json")
+
+# 3. 阿里云百炼 API Key
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-e4b45ce923944913baff2cc01cc0ab62") # 填入你的Key
+
+# 4. PaddleOCR 服务配置
+OCR_HOST = "0.0.0.0"
+OCR_PORT = 8080
+OCR_URL = f"http://localhost:{OCR_PORT}/ocr"
