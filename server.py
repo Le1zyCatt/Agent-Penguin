@@ -155,6 +155,21 @@ async def process_doc(
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+# 在 server.py 中添加新的API端点
+# ===============================
+#  API 4: 消息保存 (新功能)
+# ===============================
+@app.post("/api/message/save")
+async def save_message(data: dict):
+    """
+    保存来自NCatBot的消息
+    """
+    try:
+        result = save_incoming_message(data)
+        return {"success": True, "result": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -66,4 +66,4 @@ if __name__ == "__main__":
             print(f"    发送者: {item['metadata']['name']}, 时间: {item['metadata']['time']}")
             print("-" * 30)
     else:
-        print(f"❌ 检索失败: {result['error']}")
+        print(f"❌ 检索失败: {result['error']}") 
