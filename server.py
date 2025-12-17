@@ -1,174 +1,193 @@
 # server.py
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from contextlib import asynccontextmanager
 import shutil
 import os
-import threading
-import subprocess
-import time
 from typing import List
 
-# 1. 导入配置
 import config
 
-# 2. 导入旧项目 (scripts)
-# 确保 scripts/__init__.py 存在
 from scripts.vector_db_manager import VectorDBManager
-# 这里的 api 逻辑可以重写在 server 里，也可以复用 topk_api_module
-# 为了保持原汁原味，我们直接实例化 Manager，在接口里调用
-
-# 3. 导入新模块 (modules)
-from modules.comic_translator.core import process_comic_images
-from modules.doc_processor import process_document_summary
-from modules.msg_handler import save_incoming_message, get_recent_messages
-# 复用 translator 来进行总结
-from modules.comic_translator.translator import BailianTranslator
+from modules.msg.doc_processor import process_document_summary
+from modules.msg.msg_handler import save_incoming_message, get_recent_messages
+#总结需要修改
+from modules.msg.translator import BailianTranslator
 
 # 全局状态
-paddlex_process = None
 db_manager = None
 
-# --- 生命周期：启动 OCR 和 加载数据库 ---
-def start_ocr_service():
-    global paddlex_process
-    # 确保命令指向你的 conda 环境
-    cmd = [
-        "conda", "run", "-n", "paddle-ocr",
-        "paddlex", "--serve", "--pipeline", "./modules/comic_translator/OCR.yaml",
-        "--host", config.OCR_HOST, "--port", str(config.OCR_PORT)
-    ]
-    try:
-        print("[System] 正在启动 PaddleX OCR...")
-        paddlex_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        time.sleep(8) 
-        if paddlex_process.poll() is None:
-            print("[System] OCR 服务启动成功")
-    except Exception as e:
-        print(f"[System] OCR 启动失败: {e}")
 
+# 初始化向量数据库
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. 启动 OCR
-    threading.Thread(target=start_ocr_service, daemon=True).start()
-    
-    # 2. 加载向量数据库 (Project B)
     global db_manager
     print(f"[System] 正在加载向量数据库: {config.VECTOR_DB_PATH}")
     try:
-        # 显式传入 config 中的绝对路径
         db_manager = VectorDBManager(db_path=config.VECTOR_DB_PATH) 
         print("[System] 向量数据库加载完毕")
     except Exception as e:
         print(f"[System] ⚠️ 数据库加载失败 (请检查路径): {e}")
 
     yield
-    
-    # 清理
-    if paddlex_process:
-        paddlex_process.terminate()
 
 app = FastAPI(lifespan=lifespan, title="MangaTranslator & ChatRAG API")
 os.makedirs(config.TEMP_DIR, exist_ok=True)
 
+
+# 接受并保存消息
+@app.post("api/message/save")
+async def save_msg(request: Request):
+    """
+    接收 NCatBot 发来的消息并保存
+    """
+    try:
+        data = await request.json()
+        # 调用 msg_handler 中的保存逻辑
+        save_result = save_incoming_message(data)
+        return {"status": "success", "detail": save_result, "reply": ""} # 默认不回复
+    except Exception as e:
+        print(f"消息保存失败: {e}")
+        return {"status": "error", "msg": str(e)}
+
+
 # ===============================
-#  API 1: 聊天记录 RAG (原 Project B)
+# 功能1：查找聊天记录
 # ===============================
 @app.get("/api/chat/search")
 async def search_chat(contact: str, query: str, k: int = 10):
+    """
+    在向量数据库中搜索聊天记录
+    """
     if not db_manager:
-        return {"error": "数据库未加载"}
+        return {"results": [{"content": "错误：数据库未加载"}]}
     try:
-        # 直接调用 scripts.vector_db_manager 中的方法
+        # 调用 vector_db_manager 的搜索
+        # 注意：这里假设 db_manager.search_by_contact 返回的是 Document 对象列表
         results = db_manager.search_by_contact(contact, query, k)
-        # 序列化结果
+        
+        #使用百炼进行总结回答
+        # if not results:
+        #     return {
+        #         "success": True, 
+        #         "answer": "没有找到相关的聊天记录。", 
+        #         "sources": []
+        #     }
+
+        # # 2. 拼接上下文供 AI 阅读
+        # context_str = ""
+        # sources = []
+        # for r in results:
+        #     meta = r.metadata
+        #     # 拼接格式：[时间] 发送者: 内容
+        #     snippet = f"[{meta.get('time', '未知时间')}] {meta.get('name', '未知')}: {r.page_content}"
+        #     context_str += snippet + "\n"
+        #     sources.append({"sender": meta.get('name'), "content": r.page_content})
+
+        # # 3. 构建 Prompt
+        # prompt = (
+        #     f"你是一个聊天记录助手。请根据以下搜索到的聊天片段，回答用户的问题。\n"
+        #     f"用户问题：{query}\n\n"
+        #     f"聊天片段参考：\n{context_str}\n\n"
+        #     f"请用自然流畅的语言回答，如果片段里没有答案，请直说。"
+        # )
+
+        # # 4. 调用 LLM (复用你的 translator)
+        # translator = BailianTranslator(config.DASHSCOPE_API_KEY)
+        # # 这里复用 _call_api，mode 可以传 None 或自定义字符串让它透传 prompt
+        # ai_answer = translator._call_api(prompt, mode="custom") 
+
+        # return {
+        #     "success": True,
+        #     "answer": ai_answer,
+        #     "sources": sources # 返回来源供前端参考
+        # }
+
+        # 最普通的返回
         data = [{"content": r.page_content, "metadata": r.metadata} for r in results]
-        return {"success": True, "results": data}
+        return {"results": data}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"results": [{"content": f"搜索出错: {str(e)}"}]}
 
-# ===============================
-#  API 2: 消息总结 (新功能)
-# ===============================
-@app.post("/api/msg/summarize")
-async def summarize_chat_history(
-    contact_id: str = Form(..., description="聊天对象ID或文件名(不带.json)"),
-    limit: int = Form(50, description="总结最近多少条消息"),
-    target_lang: str = Form("Chinese", description="目标语言")
-):
-    """
-    读取指定对象的最近聊天记录，发送给 AI 进行总结
-    """
-    try:
-        # 1. 获取聊天文本
-        chat_text = get_recent_messages(contact_id, limit)
-        
-        if not chat_text:
-            return {"success": False, "error": "没有找到相关聊天记录"}
-
-        # 2. 构建 Prompt (也可以直接用 mode='summarize')
-        # 这里为了更精准的控制，我们稍微包装一下
-        system_prompt = f"以下是与 {contact_id} 的聊天记录:\n\n{chat_text}\n\n"
-        
-        # 3. 调用 AI
-        translator = BailianTranslator(config.DASHSCOPE_API_KEY)
-        # 复用 translator 的 _call_api，使用 summarize 模式
-        summary = translator._call_api(system_prompt, mode="summarize", target_lang=target_lang)
-        
-        return {
-            "success": True,
-            "contact": contact_id,
-            "processed_messages": limit,
-            "summary": summary
-        }
-
-    except FileNotFoundError:
-        return {"success": False, "error": f"找不到联系人 {contact_id} 的记录"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 
 # ===============================
-#  API 3: 通用文档翻译/总结 (新功能)
+# 功能2: 文档翻译与总结
 # ===============================
 @app.post("/api/doc/process")
 async def process_doc(
-    file: UploadFile = File(...),
-    task_type: str = Form("summarize"), # "summarize" 或 "translate"
-    target_lang: str = Form("Chinese")
+    request: Request
 ):
-    temp_path = os.path.join(config.TEMP_DIR, file.filename)
     try:
-        with open(temp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-            
-        # 调用文档处理器 (modules/doc_processor.py)
-        result_text = process_document_summary(temp_path, task_type, target_lang)
+        data = await request.json()
+        file_path = data.get("file_path")
+        # 核心点：这里接收 main.py 传过来的 task_type
+        # 如果没传，默认就当作 summarize
+        task_type = data.get("task_type", "summarize") 
+        target_lang = data.get("target_lang", "Chinese")
+        
+        # 校验路径
+        if not file_path or not os.path.exists(file_path):
+            return {"success": False, "error": f"文件路径不存在: {file_path}"}
+
+        # 执行处理
+        # process_document_summary 函数会根据 task_type 决定是总结还是翻译
+        result_text = process_document_summary(file_path, task_type, target_lang)
         
         return {
             "success": True, 
-            "filename": file.filename, 
             "task": task_type,
             "result": result_text
         }
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
 
-# 在 server.py 中添加新的API端点
-# ===============================
-#  API 4: 消息保存 (新功能)
-# ===============================
-@app.post("/api/message/save")
-async def save_message(data: dict):
-    """
-    保存来自NCatBot的消息
-    """
-    try:
-        result = save_incoming_message(data)
-        return {"success": True, "result": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+# ===============================
+#  功能3: 消息总结   默认最近50条（或者根据时间范围限定，有待商榷）
+# ===============================
+@app.post("/api/msg/summarize")
+async def summarize_chat_history(
+    contact_id: str = Form(...),
+    limit: int = Form(50),
+    target_lang: str = Form("Chinese")
+):
+    """
+    读取最近消息并调用 AI 总结
+    """
+    try:
+        # 1. 获取最近聊天文本 (从 msg_handler)
+        chat_text = get_recent_messages(contact_id, int(limit))
+        
+        if not chat_text:
+            return {"summary": "未找到相关的聊天记录，无法总结。"}
+
+        # 2. 调用 AI (复用 translator)
+        translator = BailianTranslator(config.DASHSCOPE_API_KEY)
+        summary = translator._call_api(chat_text, mode="summarize", target_lang=target_lang)
+        
+        return {"summary": summary}
+
+    except Exception as e:
+        print(f"总结失败: {e}")
+        return {"summary": f"总结发生错误: {str(e)}"}
+
+
+# ===============================
+#  API 3: 自动回复
+# ===============================
+@app.post("api/msg/auto_response")
+async def auto_response():
+    return
+
+
+# ===============================
+#  API 4: 重要消息提示
+# ===============================
+@app.post("/api/msg/notification")
+async def msg_notification():
+    return
+
+
 
 if __name__ == "__main__":
     import uvicorn

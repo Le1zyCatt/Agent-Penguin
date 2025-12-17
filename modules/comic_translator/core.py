@@ -8,7 +8,7 @@ import requests
 # 导入同级模块
 from .paddle_ocr import image_to_base64
 # 注意：你需要修改 paddle_ocr.py 让它支持从 config 读取 URL，或者在这里手动传 URL
-from .translator import BailianTranslator
+from .translator3 import BailianTranslator
 from .cv_inpaint import process_image_with_ocr_data
 
 # 导入全局配置

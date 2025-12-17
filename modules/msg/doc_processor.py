@@ -1,7 +1,7 @@
 # modules/doc_processor.py
 import os
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredWordDocumentLoader
-from .comic_translator.translator import BailianTranslator
+from translator import BailianTranslator
 import config
 
 def process_document_summary(file_path: str, task_type: str = "summarize", target_lang: str = "Chinese"):

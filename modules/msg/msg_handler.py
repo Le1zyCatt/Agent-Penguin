@@ -1,4 +1,4 @@
-# modules/msg_handler.py
+# modules/msg/msg_handler.py
 import os
 import json
 import time
@@ -10,18 +10,22 @@ os.makedirs(config.HISTORY_JSON_DIR, exist_ok=True)
 
 def save_incoming_message(data: dict):
     """
-    处理 NapCat (OneBot v11) 发来的消息并保存到 JSON
-    假设 data 是 OneBot v11 的 standard event 格式
+    处理 NapCat 发来的消息，进行分类、过滤和保存
     """
-    # 1. 简单的过滤：只处理文本消息
-    # NapCat 的消息格式通常包含 message_type, user_id, message 等
+    # 1. 确保发送的过来的json内容无误
     post_type = data.get("post_type")
     if post_type != "message":
         return {"status": "ignored", "reason": "not a message event"}
 
-    # 2. 提取关键信息
-    # 如果是群聊，用 group_id 作为文件名；如果是私聊，用 user_id
-    msg_type = data.get("message_type") # private / group
+    raw_message = data.get("raw_message", "")
+
+    # 2. 【过滤逻辑】不保存指令消息
+    # 如果消息以 / 或 ! 开头，视为命令，不计入聊天历史
+    if raw_message.strip().startswith(("/", "！", "!")):
+        return {"status": "ignored", "reason": "command message"}
+
+    # 3. 信息提取
+    msg_type = data.get("message_type") # group / private
     
     if msg_type == "group":
         contact_id = str(data.get("group_id"))
@@ -30,27 +34,56 @@ def save_incoming_message(data: dict):
         contact_id = str(data.get("user_id"))
         sender_name = data.get("sender", {}).get("nickname", "Unknown")
 
-    content = data.get("raw_message", "")
     timestamp = data.get("time", int(time.time()))
-    
-    # 格式化时间
     dt_object = datetime.fromtimestamp(timestamp)
     time_str = dt_object.strftime("%Y-%m-%d %H:%M:%S")
+    msg_id = str(data.get("message_id"))
 
-    # 3. 构造我们要保存的数据结构 (保持和你现有项目一致)
-    # 参考 html_to_json.py 的结构: {"id":..., "name":..., "time":..., "text":...}
+    # 4. 【分类逻辑】判断消息类型
+    # 默认为文本
+    content_type = "text"
+    save_content = raw_message
+    extra_info = {}
+
+    # 检查是否为图片 (根据你提供的数据结构，图片包含 image_path)
+    if "image_path" in data:
+        content_type = "image"
+        # 对于 RAG/总结，我们可能只需要知道这里发了张图，或者记录路径
+        save_content = f"[图片] {data.get('image_path')}"
+        extra_info = {"local_path": data.get("image_path")}
+    
+    # 检查是否为文件 (根据你提供的数据结构，文件包含 file_path)
+    elif "file_path" in data:
+        content_type = "file"
+        save_content = f"[文件] {raw_message}" # raw_message 通常是 "[文件]文件名"
+        extra_info = {"local_path": data.get("file_path")}
+
+    # 5. 构造统一的记录结构
     new_record = {
-        "id": str(data.get("message_id")),
+        "id": msg_id,
         "name": sender_name,
         "time": time_str,
-        "text": content,
-        "msgtype": msg_type
+        "text": save_content,  # 用于显示/总结的内容
+        "msgtype": msg_type,
+        "content_type": content_type, # 新增字段：text/image/file
+        **extra_info # 合并额外信息
     }
 
-    # 4. 追加写入文件
-    # 注意：为了性能，实际生产中通常用数据库，这里为了兼容现有逻辑继续用 JSON 文件
-    file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+    # 6. 【分流保存逻辑】
+    # 策略：如果是纯文本，存入 history_json (用于 AI RAG/总结)
+    # 如果是图片或文件，我们不仅存入 history_json (为了上下文完整)，但可以打个标记
+    # 或者，如果你完全不想让图片文件干扰 AI 总结，可以在这里把图片/文件存到别的地方
     
+    # 这里采用“全部存入但标记类型”的策略，并在 get_recent_messages 时过滤
+    
+    target_file = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+    
+    _append_to_json(target_file, new_record)
+
+    return {"status": "saved", "type": content_type, "file": target_file}
+
+def _append_to_json(file_path, record):
+    """辅助函数：追加写入 JSON"""
     current_history = []
     if os.path.exists(file_path):
         try:
@@ -59,46 +92,55 @@ def save_incoming_message(data: dict):
         except Exception:
             current_history = []
     
-    current_history.append(new_record)
+    current_history.append(record)
     
-    # 简单的写回 (并发量大时会有风险，个人使用没问题)
+    # 保持最近 2000 条，防止文件过大
+    if len(current_history) > 2000:
+        current_history = current_history[-2000:]
+
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(current_history, f, ensure_ascii=False, indent=2)
 
-    return {"status": "saved", "file": file_path}
-
-def get_recent_messages(contact_id: str, limit: int = 50):
+def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = False):
     """
-    读取指定对象的最近 N 条消息，并格式化为字符串
+    读取指定对象的最近 N 条消息
+    新增参数 include_media: 是否包含图片/文件记录
     """
-    # 这里的 contact_id 可以是人名(如果文件名是人名) 或 QQ号(如果NapCat存的是QQ号)
-    # 为了兼容，我们假设传入的就是文件名(不带.json)
-    
     file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
     
     if not os.path.exists(file_path):
-        # 尝试看看有没有包含这个名字的文件 (模糊匹配)
+        # 尝试模糊匹配
         all_files = os.listdir(config.HISTORY_JSON_DIR)
-        target_file = None
         for f in all_files:
             if contact_id in f:
-                target_file = os.path.join(config.HISTORY_JSON_DIR, f)
+                file_path = os.path.join(config.HISTORY_JSON_DIR, f)
                 break
-        
-        if not target_file:
-            raise FileNotFoundError(f"找不到关于 {contact_id} 的聊天记录")
-        file_path = target_file
+        else:
+             # 如果找不到文件，返回空字符串
+            return ""
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return ""
 
     # 取最后 limit 条
     recent_data = data[-limit:] if len(data) > limit else data
     
-    # 拼接文本
     full_text_list = []
     for item in recent_data:
-        line = f"[{item['time']}] {item['name']}: {item['text']}"
+        # 【读取时的过滤】
+        # 如果是 AI 总结 (include_media=False)，我们跳过图片和文件，只保留文本
+        # 这里的逻辑可能需要修改：1. 最近50条消息要不要包括图片or文件（即找到50条全为文本的消息）
+        # 默认是不包括图片or文字的
+        c_type = item.get("content_type", "text")
+        
+        if not include_media and c_type != "text":
+            continue 
+
+        text_content = item['text']
+        line = f"[{item['time']}] {item['name']}: {text_content}"
         full_text_list.append(line)
         
     return "\n".join(full_text_list)
