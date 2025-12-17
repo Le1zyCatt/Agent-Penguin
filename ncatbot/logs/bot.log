@@ -1,0 +1,37 @@
+[2025-12-17 16:55:13,977.977] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置文件未找到
+[2025-12-17 16:55:13,977.977] ERROR    [MainThread|MainProcess] Config (logger.py:error:134) | 加载配置失败: [setting] 配置文件不存在！
+[2025-12-17 16:55:14,014.014] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置中未设置 QQ 号
+[2025-12-17 16:55:19,690.690] WARNING  [MainThread|MainProcess] Client (logger.py:warning:139) | Bot 未处于运行状态, 无法退出
+[2025-12-17 16:59:34,991.991] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置文件未找到
+[2025-12-17 16:59:34,991.991] ERROR    [MainThread|MainProcess] Config (logger.py:error:134) | 加载配置失败: [setting] 配置文件不存在！
+[2025-12-17 17:04:42,596.596] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置文件未找到
+[2025-12-17 17:04:42,596.596] ERROR    [MainThread|MainProcess] Config (logger.py:error:134) | 加载配置失败: [setting] 配置文件不存在！
+[2025-12-17 17:07:57,307.307] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置文件未找到
+[2025-12-17 17:07:57,308.308] ERROR    [MainThread|MainProcess] Config (logger.py:error:134) | 加载配置失败: [setting] 配置文件不存在！
+[2025-12-17 17:07:57,333.333] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | [BOTQQ]: 2401262719 | [WSURI]: ws://localhost:3001 | [WS_TOKEN]:  | [ROOT]: 2490162471 | [WEBUI]: http://localhost:6099 | [WEBUI_TOKEN]: napcat
+[2025-12-17 17:07:57,334.334] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 插件目录 plugins 不存在，将自动创建
+[2025-12-17 17:08:00,802.802] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 已生成强密码: ,dNbB;0,6>JpkYgm
+[2025-12-17 17:08:00,805.805] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 配置已保存到 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/ncatbot/config.yaml
+[2025-12-17 17:08:00,863.863] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载内置插件数 [2]
+[2025-12-17 17:08:00,863.863] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 从 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/ncatbot/plugins 导入插件
+[2025-12-17 17:08:00,864.864] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载插件数 [2]
+[2025-12-17 17:08:00,864.864] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 正在以本地模式运行, 检查中...
+[2025-12-17 17:08:00,871.871] WARNING  [Thread-4 (runner)|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:warning:139) | 测试 websocket 连接失败: [Errno 111] Connect call failed ('127.0.0.1', 3001)
+[2025-12-17 17:08:00,875.875] WARNING  [MainThread|MainProcess] ncatbot.core.adapter.nc.config (logger.py:warning:139) | WebUI 令牌不匹配, 将修改为 NcatBot 配置的令牌: ,dNbB;0,6>JpkYgm
+[2025-12-17 17:08:00,922.922] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | 正在启动 NapCat 服务
+[2025-12-17 17:08:02,554.554] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | napcat 启动成功
+[2025-12-17 17:08:05,586.586] WARNING  [Thread-18 (runner)|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:warning:139) | 测试 websocket 连接失败: [Errno 111] Connect call failed ('127.0.0.1', 3001)
+[2025-12-17 17:08:05,588.588] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 登录中...
+[2025-12-17 17:08:05,685.685] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.login (logger.py:info:129) | 快速登录列表: []
+[2025-12-17 17:08:05,890.890] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.login (logger.py:info:129) | 二维码对应的 QQ 号: 2401262719
+[2025-12-17 17:08:35,905.905] WARNING  [MainThread|MainProcess] ncatbot.core.adapter.nc.login (logger.py:warning:139) | 二维码即将失效, 请尽快扫码登录
+[2025-12-17 17:08:50,696.696] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.login (logger.py:info:129) | 登录成功
+[2025-12-17 17:08:50,701.701] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 连接 napcat websocket 服务器成功!
+[2025-12-17 17:08:50,701.701] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 连接成功
+[2025-12-17 17:08:50,702.702] INFO     [MainThread|MainProcess] Adapter (logger.py:info:129) | NapCat WebSocket 连接成功
+[2025-12-17 17:08:50,702.702] INFO     [asyncio_0|MainProcess] Client (logger.py:info:129) | Bot 2401262719 启动成功
+[2025-12-17 17:09:22,335.335] INFO     [MainThread|MainProcess] ncatbot.plugin_system.builtin_plugin.unified_registry.plugin (logger.py:info:129) | 命令前缀集合: ['/', '!']
+[2025-12-17 17:36:52,190.190] INFO     [MainThread|MainProcess] Adapter (logger.py:info:129) | NapCat WebSocket 连接已关闭
+[2025-12-17 17:36:52,192.192] INFO     [MainThread|MainProcess] ncatbot.plugin_system (logger.py:info:129) | 插件 SystemManager 卸载成功
+[2025-12-17 17:36:52,193.193] INFO     [MainThread|MainProcess] ncatbot.plugin_system (logger.py:info:129) | 插件 UnifiedRegistryPlugin 卸载成功
+[2025-12-17 17:36:52,196.196] INFO     [MainThread|MainProcess] Client (logger.py:info:129) | Bot 已经正常退出
