@@ -1,6 +1,6 @@
 # vector_db_manager.py
 # 供topk_api_module.py调：加载指定向量数据库，根据关键词返回特定对象的聊天记录topk
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 import json
 import os
