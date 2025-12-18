@@ -5,3 +5,6 @@ models/
 data_struct.txt
 
 *.pyc
+
+ncatbot/install
+ncatbot/logs/
