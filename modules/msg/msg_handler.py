@@ -14,7 +14,6 @@ os.makedirs(config.HISTORY_JSON_DIR, exist_ok=True)
 MEDIA_LOG_DIR = os.path.join(config.DATA_DIR, "history_media")
 os.makedirs(MEDIA_LOG_DIR, exist_ok=True)
 
-# 在存储图片时调用ocr
 def _perform_ocr(image_path):
     """
     调用本地 PaddleOCR 服务提取文字
@@ -26,19 +25,42 @@ def _perform_ocr(image_path):
         # 1. 转 Base64
         b64 = image_to_base64(image_path)
         
-        # 2. 请求 OCR API (使用 config 中的配置)
+        # 2. 请求 OCR API
         payload = {"file": b64, "fileType": 1, "visualize": False}
         resp = requests.post(config.OCR_URL, json=payload, timeout=5)
         
         if resp.status_code == 200:
             res = resp.json()
             if res.get("errorCode", 1) == 0:
-                # 3. 提取并拼接文字
+                # 3. 修正：从正确的字段提取文字
                 texts = []
                 for page in res.get("result", {}).get("ocrResults", []):
-                    for item in page.get("prunedResult", {}).get("res", []):
-                        texts.append(item.get("text", ""))
-                return " ".join(texts)
+                    pruned_result = page.get("prunedResult", {})
+                    
+                    # 方法1：从rec_texts字段提取
+                    rec_texts = pruned_result.get("rec_texts", [])
+                    if isinstance(rec_texts, list):
+                        texts.extend([text for text in rec_texts if text])
+                    elif isinstance(rec_texts, str) and rec_texts.strip():
+                        # 如果rec_texts是字符串，尝试解析
+                        try:
+                            import ast
+                            parsed_texts = ast.literal_eval(rec_texts)
+                            if isinstance(parsed_texts, list):
+                                texts.extend([text for text in parsed_texts if text])
+                        except:
+                            # 如果解析失败，直接使用
+                            texts.append(rec_texts.strip())
+                    
+                    # 方法2：同时检查res字段（如果有的话）
+                    for item in pruned_result.get("res", []):
+                        text = item.get("text", "")
+                        if text:
+                            texts.append(text)
+                
+                result = " ".join(texts) if texts else ""
+                print(f"[OCR] 提取到文字: {result}")
+                return result
     except Exception as e:
         print(f"[MsgHandler] OCR 失败: {e}")
     

@@ -58,3 +58,41 @@ KeyError: 'data'
 [2025-12-19 00:45:58,391.391] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 SystemManager 卸载成功
 [2025-12-19 00:45:58,392.392] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 UnifiedRegistryPlugin 卸载成功
 [2025-12-19 00:45:58,394.394] INFO     [MainThread|MainProcess] Client (client.py:bot_exit:316) | Bot 已经正常退出
+[2025-12-19 01:07:29,454.454] INFO     [MainThread|MainProcess] Config (config.py:validate_config:401) | [BOTQQ]: 201382404 | [WSURI]: ws://localhost:3002 | [WS_TOKEN]: myj123 | [ROOT]: 2812656625 | [WEBUI]: http://localhost:6099 | [WEBUI_TOKEN]: napcat
+[2025-12-19 01:07:32,430.430] INFO     [MainThread|MainProcess] Config (config.py:_security_check:226) | 已生成强密码: -aYk?uqxtaie525i
+[2025-12-19 01:07:32,435.435] INFO     [MainThread|MainProcess] Config (config.py:save:110) | 配置已保存到 /home/shengge/Agent-Penguin/ncatbot/config.yaml
+[2025-12-19 01:07:32,531.531] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_builtin_plugins:280) | 已加载内置插件数 [2]
+[2025-12-19 01:07:32,531.531] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_plugins:294) | 从 /home/shengge/Agent-Penguin/ncatbot/plugins 导入插件
+[2025-12-19 01:07:32,531.531] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_plugins:306) | 已加载插件数 [2]
+[2025-12-19 01:07:32,532.532] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (launch.py:launch_napcat_service:110) | 正在以本地模式运行, 检查中...
+[2025-12-19 01:07:32,554.554] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (launch.py:check_napcat_service_remote:73) | napcat 服务器 ws://localhost:3002 在线, 正在检查账号状态...
+[2025-12-19 01:07:38,019.019] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 SystemManager 卸载成功
+[2025-12-19 01:07:38,020.020] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 UnifiedRegistryPlugin 卸载成功
+[2025-12-19 01:07:38,029.029] INFO     [MainThread|MainProcess] Client (client.py:bot_exit:316) | Bot 已经正常退出
+[2025-12-19 01:07:42,131.131] INFO     [MainThread|MainProcess] Config (config.py:validate_config:401) | [BOTQQ]: 201382404 | [WSURI]: ws://localhost:3002 | [WS_TOKEN]: myj123 | [ROOT]: 2812656625 | [WEBUI]: http://localhost:6099 | [WEBUI_TOKEN]: napcat
+[2025-12-19 01:07:43,362.362] INFO     [MainThread|MainProcess] Config (config.py:_security_check:226) | 已生成强密码: a509<3OpQz=46y2l
+[2025-12-19 01:07:43,364.364] INFO     [MainThread|MainProcess] Config (config.py:save:110) | 配置已保存到 /home/shengge/Agent-Penguin/ncatbot/config.yaml
+[2025-12-19 01:07:43,428.428] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_builtin_plugins:280) | 已加载内置插件数 [2]
+[2025-12-19 01:07:43,429.429] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_plugins:294) | 从 /home/shengge/Agent-Penguin/ncatbot/plugins 导入插件
+[2025-12-19 01:07:43,429.429] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (loader.py:load_plugins:306) | 已加载插件数 [2]
+[2025-12-19 01:07:43,430.430] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (launch.py:launch_napcat_service:110) | 正在以本地模式运行, 检查中...
+[2025-12-19 01:07:43,436.436] WARNING  [Thread-4 (runner)|MainProcess] ncatbot.core.adapter.nc.launch (launch.py:test_websocket:47) | 测试 websocket 连接失败: [Errno 111] Connect call failed ('127.0.0.1', 3002)
+[2025-12-19 01:07:43,440.440] WARNING  [MainThread|MainProcess] ncatbot.core.adapter.nc.config (config.py:config_webui:135) | WebUI 令牌不匹配, 将修改为 NcatBot 配置的令牌: a509<3OpQz=46y2l
+[2025-12-19 01:07:43,474.474] INFO     [MainThread|MainProcess] adapter.nc.start (start.py:start_napcat_linux:39) | 正在启动 NapCat 服务
+[2025-12-19 01:07:45,074.074] INFO     [MainThread|MainProcess] adapter.nc.start (start.py:start_napcat_linux:68) | napcat 启动成功
+[2025-12-19 01:07:46,120.120] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (launch.py:launch_napcat_service:130) | 快速登录成功, 跳过登录引导
+[2025-12-19 01:07:46,130.130] INFO     [MainThread|MainProcess] Adapter (adapter.py:connect_websocket:92) | NapCat WebSocket 连接成功
+[2025-12-19 01:07:46,131.131] INFO     [asyncio_0|MainProcess] Client (client.py:<lambda>:115) | Bot 201382404 启动成功
+[2025-12-19 01:07:56,580.580] WARNING  [MainThread|MainProcess] MessageSegment (message_segment.py:_get_final_path:254) | 文件已存在: /home/shengge/Agent-Penguin/ncatbot/data/882101B387043F66099D924BCD268764.png, 将保存为 /home/shengge/Agent-Penguin/ncatbot/data/1766077676.5804343-882101B387043F66099D924BCD268764.png
+[2025-12-19 01:07:56,763.763] INFO     [MainThread|MainProcess] ncatbot.plugin_system.builtin_plugin.unified_registry.plugin (plugin.py:initialize_if_needed:182) | 命令前缀集合: ['/', '!']
+[2025-12-19 01:07:56,865.865] INFO     [MainThread|MainProcess] httpx (_client.py:_send_single_request:1740) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhTogFK6teK3OT9DpsQcs4RyWz364BiZ8wgg_woo-e-ShNDHkQMyBHByb2RQgL2jAVoQMNrf_-Qzb9atQ6KOcu5W1noCFqmCAQJneg&rkey=CAISMJF60xuW3gZLWiEhsIGU7ByitnhH2J4lLmWvH44NUfzIspBKBbDFxihgq_R2c5G8Cg "HTTP/1.1 200 OK"
+[2025-12-19 01:10:39,384.384] WARNING  [MainThread|MainProcess] MessageSegment (message_segment.py:_get_final_path:254) | 文件已存在: /home/shengge/Agent-Penguin/ncatbot/data/882101B387043F66099D924BCD268764.png, 将保存为 /home/shengge/Agent-Penguin/ncatbot/data/1766077839.384482-882101B387043F66099D924BCD268764.png
+[2025-12-19 01:10:40,150.150] INFO     [MainThread|MainProcess] httpx (_client.py:_send_single_request:1740) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhTogFK6teK3OT9DpsQcs4RyWz364BiZ8wgg_woo9M7y0dDHkQMyBHByb2RQgL2jAVoQ5jDMObpY-T200OUUq5dyFXoCYtCCAQJneg&rkey=CAISMJF60xuW3gZLWiEhsIGU7ByitnhH2J4lLmWvH44NUfzIspBKBbDFxihgq_R2c5G8Cg "HTTP/1.1 200 OK"
+[2025-12-19 01:14:19,895.895] WARNING  [MainThread|MainProcess] MessageSegment (message_segment.py:_get_final_path:254) | 文件已存在: /home/shengge/Agent-Penguin/ncatbot/data/882101B387043F66099D924BCD268764.png, 将保存为 /home/shengge/Agent-Penguin/ncatbot/data/1766078059.895534-882101B387043F66099D924BCD268764.png
+[2025-12-19 01:14:20,028.028] INFO     [MainThread|MainProcess] httpx (_client.py:_send_single_request:1740) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhTogFK6teK3OT9DpsQcs4RyWz364BiZ8wgg_woolof6utHHkQMyBHByb2RQgL2jAVoQEpUSO0K7hZPIowhx441PCXoCKgGCAQJneg&rkey=CAISMJF60xuW3gZLWiEhsIGU7ByitnhH2J4lLmWvH44NUfzIspBKBbDFxihgq_R2c5G8Cg "HTTP/1.1 200 OK"
+[2025-12-19 01:14:39,577.577] WARNING  [MainThread|MainProcess] MessageSegment (message_segment.py:_get_final_path:254) | 文件已存在: /home/shengge/Agent-Penguin/ncatbot/data/3B02734137F3C173B388E23AD021407B.png, 将保存为 /home/shengge/Agent-Penguin/ncatbot/data/1766078079.5770264-3B02734137F3C173B388E23AD021407B.png
+[2025-12-19 01:14:39,690.690] INFO     [MainThread|MainProcess] httpx (_client.py:_send_single_request:1740) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhT_Nm2WcitTIMjBpubqs1ycddrwRRjaMSD_CiijzrLE0ceRAzIEcHJvZFCAvaMBWhALk_JtY_-tS8Tp9cMseBe_egIUDIIBAmd6&rkey=CAISMJF60xuW3gZLWiEhsIGU7ByitnhH2J4lLmWvH44NUfzIspBKBbDFxihgq_R2c5G8Cg "HTTP/1.1 200 OK"
+[2025-12-19 01:15:30,799.799] INFO     [MainThread|MainProcess] Adapter (adapter.py:cleanup:208) | NapCat WebSocket 连接已关闭
+[2025-12-19 01:15:30,800.800] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 SystemManager 卸载成功
+[2025-12-19 01:15:30,801.801] INFO     [MainThread|MainProcess] ncatbot.plugin_system (ncatbot_plugin.py:on_close:20) | 插件 UnifiedRegistryPlugin 卸载成功
+[2025-12-19 01:15:30,806.806] INFO     [MainThread|MainProcess] Client (client.py:bot_exit:316) | Bot 已经正常退出
