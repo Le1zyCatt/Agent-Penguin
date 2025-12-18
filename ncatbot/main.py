@@ -1,135 +1,229 @@
-# ncatbot/main.py
 # ========= 导入必要模块 ==========
 import asyncio
 import json
 import requests
-from ncatbot.core import BotClient, PrivateMessage, GroupMessage
-import threading
+import os
 import time
 
+from ncatbot.core import BotClient, GroupMessageEvent, PrivateMessageEvent
+from ncatbot.core.event import Text, Image, File
+from ncatbot.utils import config
+
 # ========== 配置 ==========
-AGENT_PENGUIN_BASE_URL = "http://localhost:8000"  # 修改为正确的端口
+AGENT_PENGUIN_BASE_URL = "http://localhost:8000"
+
+config.set_bot_uin("2401262719")
+config.set_root("2490162471")
+config.set_ws_uri("ws://localhost:3002")
+config.set_ws_token("114514@Ljn")
+config.set_webui_uri("http://localhost:6099")
+config.set_webui_token("napcat")
 
 # ========== 创建 BotClient ==========
 bot = BotClient()
 
-# ========== 与Agent-Penguin通信的工具函数 ==========
+# ========== 数据目录 ==========
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# ========== 与 Agent-Penguin 通信 ==========
 def send_chat_message_to_agent(data: dict):
-    """
-    发送聊天消息到Agent-Penguin
-    """
+    print(
+        "[NCatBot] 发送到 Agent-Penguin:\n"
+        + json.dumps(data, ensure_ascii=False, indent=2)
+    )
     try:
-        # 保存消息到Agent-Penguin
-        save_response = requests.post(f"{AGENT_PENGUIN_BASE_URL}/api/message/save", json=data, timeout=10)
-        
-        # 如果是需要自动回复的消息，则调用相关API
-        if data.get("raw_message", "").startswith(("/", "!")):  # 假设命令以/或!开头
-            # 这里可以根据消息内容调用不同的API
-            if "search" in data.get("raw_message", ""):
-                # 调用聊天记录搜索API
-                query = data.get("raw_message", "").replace("/", "").replace("!", "")
-                search_params = {
-                    "contact": str(data.get("user_id")),
-                    "query": query,
-                    "k": 10
-                }
-                response = requests.get(f"{AGENT_PENGUIN_BASE_URL}/api/chat/search", params=search_params, timeout=10)
-                if response.status_code == 200:
-                    return response.json()
-            elif "summarize" in data.get("raw_message", ""):
-                # 调用消息总结API
-                summary_data = {
-                    "contact_id": str(data.get("user_id")),
-                    "limit": 50,
-                    "target_lang": "Chinese"
-                }
-                response = requests.post(f"{AGENT_PENGUIN_BASE_URL}/api/msg/summarize", data=summary_data, timeout=10)
-                if response.status_code == 200:
-                    return response.json()
-        
-        return {"reply": "消息已收到"}
+        r = requests.post(
+            f"{AGENT_PENGUIN_BASE_URL}/api/message/save",
+            json=data,
+            timeout=10,
+        )
+        return r.json() if r.ok else None
     except Exception as e:
-        print(f"[NCatBot] 发送到Agent-Penguin异常: {e}")
+        print("[NCatBot] Agent 通信异常:", e)
         return None
+def download_temp_video(url: str, save_path: str):
+    """
+    下载 QQ 视频（rkey 临时 URL）
+    必须立刻调用
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://im.qq.com/"
+    }
+    r = requests.get(url, headers=headers, timeout=30)
+    r.raise_for_status()
+    with open(save_path, "wb") as f:
+        f.write(r.content)
 
-# ========= 注册回调函数 ==========
-@bot.private_event()
-async def on_private_message(msg: PrivateMessage):
-    """
-    处理私聊消息
-    """
-    print(f"[NCatBot] 收到私聊消息: {msg.raw_message} (来自: {msg.user_id})")
-    
-    # 构造发送给Agent-Penguin的数据格式
+
+# ================= 公共处理函数 =================
+
+async def handle_text(event, message_type):
+    texts = event.message.filter_text()
+    if not texts:
+        return
+
+    text_content = "".join(t.text for t in texts)
+    print(f"收到{message_type}文本:", text_content)
+
     agent_data = {
         "post_type": "message",
-        "message_type": "private",
-        "user_id": msg.user_id,
-        "message_id": msg.message_id,
-        "raw_message": msg.raw_message,
+        "message_type": message_type,
+        "user_id": event.user_id,
+        "group_id": getattr(event, "group_id", None),
+        "message_id": event.message_id,
+        "raw_message": text_content,
         "sender": {
-            "user_id": msg.user_id,
-            "nickname": msg.sender.nickname if msg.sender else "Unknown"
+            "user_id": event.user_id,
+            "nickname": event.sender.nickname if event.sender else "Unknown",
         },
-        "time": int(time.time())
+        "time": int(time.time()),
     }
-    
-    # 异步发送到Agent-Penguin处理
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
-    
-    # 根据响应内容发送回复
-    if response and isinstance(response, dict):
-        if "results" in response:  # 搜索结果
-            reply_text = "找到相关内容:\n" + "\n".join([r.get("content", "") for r in response["results"][:3]])
-            await bot.api.post_private_msg(user_id=msg.user_id, text=reply_text)
-        elif "summary" in response:  # 总结结果
-            reply_text = f"聊天记录总结:\n{response['summary']}"
-            await bot.api.post_private_msg(user_id=msg.user_id, text=reply_text)
-        elif "reply" in response:
-            await bot.api.post_private_msg(user_id=msg.user_id, text=response["reply"])
-    elif msg.raw_message == "测试":
-        await bot.api.post_private_msg(user_id=msg.user_id, text="NcatBot 测试成功喵~")
 
-@bot.group_event()
-async def on_group_message(msg: GroupMessage):
-    """
-    处理群聊消息
-    """
-    print(f"[NCatBot] 收到群聊消息: {msg.raw_message} (来自群: {msg.group_id}, 发送者: {msg.user_id})")
-    
-    # 构造发送给Agent-Penguin的数据格式
-    agent_data = {
-        "post_type": "message",
-        "message_type": "group",
-        "group_id": msg.group_id,
-        "user_id": msg.user_id,
-        "message_id": msg.message_id,
-        "raw_message": msg.raw_message,
-        "sender": {
-            "user_id": msg.user_id,
-            "nickname": msg.sender.nickname if msg.sender else "Unknown"
-        },
-        "time": int(time.time())
-    }
-    
-    # 异步发送到Agent-Penguin处理
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
-    
-    # 根据响应内容发送回复
-    if response and isinstance(response, dict):
-        if "results" in response:  # 搜索结果
-            reply_text = "找到相关内容:\n" + "\n".join([r.get("content", "") for r in response["results"][:3]])
-            await bot.api.post_group_msg(group_id=msg.group_id, text=reply_text)
-        elif "summary" in response:  # 总结结果
-            reply_text = f"聊天记录总结:\n{response['summary']}"
-            await bot.api.post_group_msg(group_id=msg.group_id, text=reply_text)
-        elif "reply" in response:
-            await bot.api.post_group_msg(group_id=msg.group_id, text=response["reply"])
+    await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
 
-# ========== 启动 BotClient ==========
+    await event.reply(text=f"收到文本：{text_content}")
+
+
+async def handle_images(event, message_type):
+    images = event.message.filter(Image)
+    if not images:
+        return
+
+    for idx, img in enumerate(images, 1):
+        try:
+            image_path = await img.download(DATA_DIR)
+            print("图片已保存:", image_path)
+        except Exception as e:
+            print("图片下载失败:", e)
+            image_path = None
+
+        agent_data = {
+            "post_type": "message",
+            "message_type": message_type,
+            "user_id": event.user_id,
+            "group_id": getattr(event, "group_id", None),
+            "message_id": event.message_id,
+            "raw_message": f"[图片 {idx}]",
+            "image_path": image_path,
+            "time": int(time.time()),
+        }
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
+
+    await event.reply(text="收到图片")
+
+
+async def handle_files(event, message_type):
+    files = event.message.filter(File)
+    if not files:
+        return
+
+    for file in files:
+        try:
+            file_path = await file.download(DATA_DIR)
+            print("文件已保存:", file_path)
+
+            agent_data = {
+                "post_type": "message",
+                "message_type": message_type,
+                "user_id": event.user_id,
+                "group_id": getattr(event, "group_id", None),
+                "message_id": event.message_id,
+                "raw_message": f"[文件]{file.get_file_name()}",
+                "file_path": file_path,
+                "time": int(time.time()),
+            }
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
+
+            await event.reply(text=f"收到文件：{file.get_file_name()}")
+
+        except Exception as e:
+            print("文件处理失败:", e)
+            await event.reply(text="文件处理失败")
+
+
+async def handle_video_or_record(event, message_type):
+    raw = event.raw_message or ""
+
+    # 只处理 video
+    if "[CQ:video" not in raw:
+        return
+
+    print("检测到视频消息:", raw)
+
+    # 从 raw_message 里粗暴取 url（CQ 码格式是稳定的）
+    import re
+
+    m = re.search(r"url=([^,\]]+)", raw)
+    if not m:
+        print("未找到视频 url，放弃下载")
+        return
+
+    url = m.group(1)
+
+    filename = f"video_{event.message_id}_{int(time.time())}.mp4"
+    save_path = os.path.join(DATA_DIR, filename)
+
+    try:
+        # ⚠️ 立刻下载
+        download_temp_video(url, save_path)
+        print("视频已保存:", save_path)
+
+        agent_data = {
+            "post_type": "message",
+            "message_type": message_type,
+            "user_id": event.user_id,
+            "group_id": getattr(event, "group_id", None),
+            "message_id": event.message_id,
+            "raw_message": "[视频]",
+            "video_path": save_path,
+            "time": int(time.time()),
+        }
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
+
+        await event.reply(text="收到视频（已保存）")
+
+    except Exception as e:
+        print("视频下载失败:", e)
+        await event.reply(text="视频接收失败")
+
+
+
+# ================= 群聊 =================
+
+@bot.on_group_message()
+async def on_group_message(event: GroupMessageEvent):
+    print("[NCatBot] 群聊:", event.raw_message)
+
+    await handle_text(event, "group")
+    await handle_images(event, "group")
+    await handle_files(event, "group")
+    await handle_video_or_record(event, "group")
+
+
+# ================= 私聊 =================
+
+@bot.on_private_message()
+async def on_private_message(event: PrivateMessageEvent):
+    print("[NCatBot] 私聊:", event.raw_message)
+
+    await handle_text(event, "private")
+    await handle_images(event, "private")
+    await handle_files(event, "private")
+    await handle_video_or_record(event, "private")
+
+
+# ================= 启动 =================
+
 if __name__ == "__main__":
-    print("[NCatBot] 正在启动...")
-    print(f"[NCatBot] 将与Agent-Penguin在 {AGENT_PENGUIN_BASE_URL} 通信")
+    print("[NCatBot] 启动中")
+    print("数据目录:", DATA_DIR)
     bot.run()
