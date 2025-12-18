@@ -172,35 +172,44 @@ def _append_to_json(file_path, record):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(current_history, f, ensure_ascii=False, indent=2)
 
+# modules/msg/msg_handler.py
+
 def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = True):
     """
     读取指定对象的最近 N 条消息
-    新增参数 include_media: 是否包含图片/文件记录
+    contact_id: 对应文件名（通常是QQ号）
+    include_media: 是否包含图片/文件记录（及其OCR内容）
     """
+    # 1. 尝试直接拼接路径 (最快)
     file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
     
+    # 2. 如果文件不存在，尝试模糊匹配 (防止 contact_id 传进来不带后缀，或者文件名有差异)
     if not os.path.exists(file_path):
-        # 尝试模糊匹配
-        all_files = os.listdir(config.HISTORY_JSON_DIR)
-        for f in all_files:
-            if contact_id in f:
-                file_path = os.path.join(config.HISTORY_JSON_DIR, f)
-                break
-        else:
-             # 如果找不到文件，返回空字符串
+        found = False
+        if os.path.exists(config.HISTORY_JSON_DIR):
+            all_files = os.listdir(config.HISTORY_JSON_DIR)
+            for f in all_files:
+                # 假设 contact_id 是 "123456"，文件名是 "123456.json"
+                if f == f"{contact_id}.json" or (contact_id in f and f.endswith(".json")):
+                    file_path = os.path.join(config.HISTORY_JSON_DIR, f)
+                    found = True
+                    break
+        
+        if not found:
+            print(f"[MsgHandler] 未找到联系人 {contact_id} 的聊天记录")
             return ""
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"[MsgHandler] 读取记录失败: {e}")
         return ""
 
     collected_messages = []
     count = 0
 
-    # 【核心逻辑修改】：倒序遍历 (从最新的消息开始往回找)
-    # 这样可以确保我们找到 limit 条“符合条件”的消息，而不是先切片再过滤
+    # 倒序遍历：从最新消息开始往回找
     for item in reversed(data):
         if count >= limit:
             break
@@ -211,19 +220,26 @@ def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = 
         if not include_media and c_type != "text":
             continue
         
-        if c_type == "image" or c_type == "file":
+        # 获取基础文本 (例如 "你好" 或 "[图片]" 或 "[文件: xxx.pdf]")
+        msg_content = item.get("text", "")
 
+        # 如果是媒体类型，且我们需要包含它，尝试追加 extracted_content
+        if include_media and (c_type == "image" or c_type == "file"):
             extra = item.get("extracted_content", "")
+            
+            # 过滤无效的 OCR 结果，避免干扰 AI
             invalid_keywords = ["[OCR未识别", "[读取文件出错", "[不支持", "[文件不存在"]
-            if extra and not any(k in extra for k in invalid_keywords):
-                display_text += f" (内容详情: {extra})"
+            is_valid_extra = extra and not any(k in extra for k in invalid_keywords)
+            
+            if is_valid_extra:
+                # 拼接格式： [图片] (内容详情: 图片里的文字...)
+                msg_content += f" (内容详情: {extra})"
             
         # 格式化消息行
-        # 因为我们在 save 时已经清洗了 item['text']，这里直接用即可
-        # 效果: "[12:00] User: [图片]" 或 "[12:01] User: 你好"
-        line = f"[{item['time']}] {item['name']}: {item['text']}"
+        # 结果示例: "[2023-10-27 10:00:00] 懒猫: [图片] (内容详情: 账单金额50元)"
+        line = f"[{item['time']}] {item['name']}: {msg_content}"
         collected_messages.append(line)
         count += 1
 
-    # 因为是倒序找的，最后要反转回来，变成正常的时间顺序
+    # 因为是倒序找的，最后要反转回来，变成正常的时间顺序 (旧 -> 新)
     return "\n".join(reversed(collected_messages))

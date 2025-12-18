@@ -145,30 +145,39 @@ async def process_doc(
 # ===============================
 #  功能3: 消息总结   默认最近50条（或者根据时间范围限定，有待商榷）
 # ===============================
+# server.py
+
 @app.post("/api/msg/summarize")
 async def summarize_chat_history(
-    contact_id: str = Form(...),
-    limit: int = Form(50),
+    contact_id: str = Form(...),      # 前端传来的 ID，如 "123456"
+    limit: int = Form(50),            # 总结最近多少条
     target_lang: str = Form("Chinese")
 ):
     """
     读取最近消息并调用 AI 总结
     """
     try:
-        # 1. 获取最近聊天文本 (从 msg_handler)
-        chat_text = get_recent_messages(contact_id, int(limit))
+        print(f"[Summarize] 正在请求总结联系人: {contact_id}, 最近 {limit} 条")
+        
+        # 1. 获取最近聊天文本 (强制包含媒体内容的OCR信息)
+        chat_text = get_recent_messages(contact_id, int(limit), include_media=True)
         
         if not chat_text:
-            return {"summary": "未找到相关的聊天记录，无法总结。"}
+            return {"summary": f"未找到 ID 为 {contact_id} 的聊天记录，或记录为空。"}
 
         # 2. 调用 AI (复用 translator)
+        # 注意：这里假设 chat_text 可能很长，BailianTranslator 内部最好有长度截断或分段处理
         translator = BailianTranslator(config.DASHSCOPE_API_KEY)
+        
+        # 这里的 mode="summarize" 取决于你 translator.py 里的实现
         summary = translator._call_api(chat_text, mode="summarize", target_lang=target_lang)
         
         return {"summary": summary}
 
     except Exception as e:
         print(f"总结失败: {e}")
+        import traceback
+        traceback.print_exc()
         return {"summary": f"总结发生错误: {str(e)}"}
 
 
