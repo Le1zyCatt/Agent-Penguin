@@ -1,5 +1,5 @@
 # topk_api_module.py
-from vector_db_manager import VectorDBManager
+from .vector_db_manager import VectorDBManager
 
 def search_messages_api(contact_name, query, k=20):
     """
