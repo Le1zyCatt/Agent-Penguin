@@ -1,0 +1,17 @@
+[2025-12-18 14:03:31,042.042] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 配置文件未找到
+[2025-12-18 14:03:31,042.042] ERROR    [MainThread|MainProcess] Config (logger.py:error:134) | 加载配置失败: [setting] 配置文件不存在！
+[2025-12-18 14:03:31,078.078] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | [BOTQQ]: 2401262719 | [WSURI]: ws://localhost:3002 | [WS_TOKEN]: 114514@Ljn | [ROOT]: 2490162471 | [WEBUI]: http://localhost:6099 | [WEBUI_TOKEN]: napcat
+[2025-12-18 14:03:31,078.078] WARNING  [MainThread|MainProcess] Config (logger.py:warning:139) | 插件目录 plugins 不存在，将自动创建
+[2025-12-18 14:03:32,704.704] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 已生成强密码: EenQ-{07#>Yq2PCR
+[2025-12-18 14:03:32,706.706] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 配置已保存到 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/config.yaml
+[2025-12-18 14:03:32,759.759] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载内置插件数 [2]
+[2025-12-18 14:03:32,759.759] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 从 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/plugins 导入插件
+[2025-12-18 14:03:32,759.759] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载插件数 [2]
+[2025-12-18 14:03:32,760.760] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 正在以本地模式运行, 检查中...
+[2025-12-18 14:03:32,766.766] WARNING  [Thread-4 (runner)|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:warning:139) | 测试 websocket 连接失败: [Errno 111] Connect call failed ('127.0.0.1', 3002)
+[2025-12-18 14:03:32,770.770] WARNING  [MainThread|MainProcess] ncatbot.core.adapter.nc.config (logger.py:warning:139) | WebUI 令牌不匹配, 将修改为 NcatBot 配置的令牌: EenQ-{07#>Yq2PCR
+[2025-12-18 14:03:32,811.811] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | 正在启动 NapCat 服务
+[2025-12-18 14:03:34,442.442] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | napcat 启动成功
+[2025-12-18 14:03:34,963.963] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 快速登录成功, 跳过登录引导
+[2025-12-18 14:03:34,965.965] INFO     [MainThread|MainProcess] Adapter (logger.py:info:129) | NapCat WebSocket 连接成功
+[2025-12-18 14:03:34,965.965] INFO     [asyncio_0|MainProcess] Client (logger.py:info:129) | Bot 2401262719 启动成功

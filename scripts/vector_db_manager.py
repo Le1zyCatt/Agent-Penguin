@@ -73,4 +73,40 @@ class VectorDBManager:
             return contacts
         except Exception as e:
             raise RuntimeError(f"获取联系人列表失败: {e}")
-
+    
+    def get_next_messages(self, contact_name, message_id, n=1, json_dir="data/history_json"):
+        """
+        获取指定消息的下n条消息
+        
+        Args:
+            contact_name (str): 聊天对象姓名
+            message_id (str): 消息ID
+            n (int): 要获取的后续消息数量
+            json_dir (str): JSON文件目录
+            
+        Returns:
+            list: 后续n条消息的列表
+        """
+        try:
+            json_path = os.path.join(json_dir, f"{contact_name}.json")
+            if not os.path.exists(json_path):
+                raise FileNotFoundError(f"找不到联系人 {contact_name} 的聊天记录文件")
+            
+            with open(json_path, 'r', encoding='utf-8') as f:
+                messages = json.load(f)
+            
+            # 找到指定ID的消息索引
+            target_index = -1
+            for idx, msg in enumerate(messages):
+                if msg.get('id') == message_id:
+                    target_index = idx
+                    break
+            
+            if target_index == -1:
+                return []
+            
+            # 获取后续n条消息
+            next_messages = messages[target_index + 1 : target_index + 1 + n]
+            return next_messages
+        except Exception as e:
+            raise RuntimeError(f"获取后续消息失败: {e}")
