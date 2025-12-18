@@ -35,7 +35,7 @@ os.makedirs(config.TEMP_DIR, exist_ok=True)
 
 
 # 接受并保存消息
-@app.post("api/message/save")
+@app.post("/api/message/save")
 async def save_msg(request: Request):
     """
     接收 NCatBot 发来的消息并保存
@@ -175,7 +175,7 @@ async def summarize_chat_history(
 # ===============================
 #  API 3: 自动回复
 # ===============================
-@app.post("api/msg/auto_response")
+@app.post("/api/msg/auto_response")
 async def auto_response():
     return
 

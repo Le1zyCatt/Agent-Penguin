@@ -3,3 +3,14 @@ data/
 models/
 
 data_struct.txt
+
+ncatbot/data/
+ncatbot/logs/
+ncatbot/plugins/
+ncatbot/config.yaml
+ncatbot/install
+
+**/__pycache__/
+*.pyc
+
+logs/

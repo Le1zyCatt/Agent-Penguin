@@ -2,11 +2,47 @@
 import os
 import json
 import time
+import requests
 from datetime import datetime
 import config
 
+from .doc_processor import extract_text_from_file
+from modules.comic_translator.utils.paddle_ocr import image_to_base64
+
 # 确保保存目录存在
 os.makedirs(config.HISTORY_JSON_DIR, exist_ok=True)
+MEDIA_LOG_DIR = os.path.join(config.DATA_DIR, "history_media")
+os.makedirs(MEDIA_LOG_DIR, exist_ok=True)
+
+# 在存储图片时调用ocr
+def _perform_ocr(image_path):
+    """
+    调用本地 PaddleOCR 服务提取文字
+    """
+    if not os.path.exists(image_path):
+        return ""
+    
+    try:
+        # 1. 转 Base64
+        b64 = image_to_base64(image_path)
+        
+        # 2. 请求 OCR API (使用 config 中的配置)
+        payload = {"file": b64, "fileType": 1, "visualize": False}
+        resp = requests.post(config.OCR_URL, json=payload, timeout=5)
+        
+        if resp.status_code == 200:
+            res = resp.json()
+            if res.get("errorCode", 1) == 0:
+                # 3. 提取并拼接文字
+                texts = []
+                for page in res.get("result", {}).get("ocrResults", []):
+                    for item in page.get("prunedResult", {}).get("res", []):
+                        texts.append(item.get("text", ""))
+                return " ".join(texts)
+    except Exception as e:
+        print(f"[MsgHandler] OCR 失败: {e}")
+    
+    return ""
 
 def save_incoming_message(data: dict):
     """
@@ -39,34 +75,50 @@ def save_incoming_message(data: dict):
     time_str = dt_object.strftime("%Y-%m-%d %H:%M:%S")
     msg_id = str(data.get("message_id"))
 
-    # 4. 【分类逻辑】判断消息类型
-    # 默认为文本
+    # 4. 【分类与清洗逻辑】
     content_type = "text"
-    save_content = raw_message
-    extra_info = {}
-
-    # 检查是否为图片 (根据你提供的数据结构，图片包含 image_path)
+    save_text = raw_message # 默认存原始内容
+    local_path = ""
+    extracted_content = ""
+    
+    # 图片处理
     if "image_path" in data:
         content_type = "image"
-        # 对于 RAG/总结，我们可能只需要知道这里发了张图，或者记录路径
-        save_content = f"[图片] {data.get('image_path')}"
-        extra_info = {"local_path": data.get("image_path")}
+        local_path = data.get("image_path")
+        save_text = "[图片]"
+        
+        # 立即执行 OCR
+        print(f"[MsgHandler] 正在对图片进行 OCR: {local_path}...")
+        ocr_text = _perform_ocr(local_path)
+        if ocr_text:
+            extracted_content = ocr_text
+            print(f"[MsgHandler] OCR 成功，提取字符数: {len(ocr_text)}")
+        else:
+            extracted_content = "[OCR未识别到文字或服务不可用]"
     
-    # 检查是否为文件 (根据你提供的数据结构，文件包含 file_path)
+    # 文件处理
     elif "file_path" in data:
         content_type = "file"
-        save_content = f"[文件] {raw_message}" # raw_message 通常是 "[文件]文件名"
-        extra_info = {"local_path": data.get("file_path")}
+        local_path = data.get("file_path")
+        file_name = os.path.basename(local_path)
+        save_text = f"[文件: {file_name}]"
+        # 立即读取文件
+        print(f"[MsgHandler] 正在读取文件内容: {local_path}...")
+        # 限制读取前 1000 字符，避免存太大的 JSON
+        file_text = extract_text_from_file(local_path, max_chars=1000) 
+        extracted_content = file_text
+        print(f"[MsgHandler] 文件读取完成")
 
     # 5. 构造统一的记录结构
     new_record = {
         "id": msg_id,
         "name": sender_name,
         "time": time_str,
-        "text": save_content,  # 用于显示/总结的内容
-        "msgtype": msg_type,
-        "content_type": content_type, # 新增字段：text/image/file
-        **extra_info # 合并额外信息
+        "text": save_text,          # 简短文本，如 "[图片]"
+        "content_type": content_type,
+        "local_path": local_path,
+        "extracted_content": extracted_content, # 【新字段】存 OCR 或文件内容
+        "msgtype": msg_type
     }
 
     # 6. 【分流保存逻辑】
@@ -101,7 +153,7 @@ def _append_to_json(file_path, record):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(current_history, f, ensure_ascii=False, indent=2)
 
-def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = False):
+def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = True):
     """
     读取指定对象的最近 N 条消息
     新增参数 include_media: 是否包含图片/文件记录
@@ -125,22 +177,34 @@ def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = 
     except Exception:
         return ""
 
-    # 取最后 limit 条
-    recent_data = data[-limit:] if len(data) > limit else data
-    
-    full_text_list = []
-    for item in recent_data:
-        # 【读取时的过滤】
-        # 如果是 AI 总结 (include_media=False)，我们跳过图片和文件，只保留文本
-        # 这里的逻辑可能需要修改：1. 最近50条消息要不要包括图片or文件（即找到50条全为文本的消息）
-        # 默认是不包括图片or文字的
+    collected_messages = []
+    count = 0
+
+    # 【核心逻辑修改】：倒序遍历 (从最新的消息开始往回找)
+    # 这样可以确保我们找到 limit 条“符合条件”的消息，而不是先切片再过滤
+    for item in reversed(data):
+        if count >= limit:
+            break
+            
         c_type = item.get("content_type", "text")
         
+        # 如果不包含媒体，且当前消息不是文本，则跳过
         if not include_media and c_type != "text":
-            continue 
-
-        text_content = item['text']
-        line = f"[{item['time']}] {item['name']}: {text_content}"
-        full_text_list.append(line)
+            continue
         
-    return "\n".join(full_text_list)
+        if c_type == "image" or c_type == "file":
+
+            extra = item.get("extracted_content", "")
+            invalid_keywords = ["[OCR未识别", "[读取文件出错", "[不支持", "[文件不存在"]
+            if extra and not any(k in extra for k in invalid_keywords):
+                display_text += f" (内容详情: {extra})"
+            
+        # 格式化消息行
+        # 因为我们在 save 时已经清洗了 item['text']，这里直接用即可
+        # 效果: "[12:00] User: [图片]" 或 "[12:01] User: 你好"
+        line = f"[{item['time']}] {item['name']}: {item['text']}"
+        collected_messages.append(line)
+        count += 1
+
+    # 因为是倒序找的，最后要反转回来，变成正常的时间顺序
+    return "\n".join(reversed(collected_messages))

@@ -14,6 +14,9 @@ import json
 from utils.paddle_ocr import image_to_base64, ocr_image, extract_text
 from utils.translator3 import BailianTranslator, save_translated_data
 from utils.cv_inpaint import process_image_with_ocr_data
+
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 import config
 
 app = FastAPI()
@@ -46,7 +49,7 @@ def start_paddlex_service():
         # 使用conda环境执行命令
         cmd = [
             "conda", "run", "-n", "paddle-ocr",
-            "paddlex", "--serve", "--pipeline", "./OCR.yaml", 
+            "paddlex", "--serve", "--pipeline", "./modules/comic_translator/OCR.yaml", 
             "--host", "0.0.0.0",
             "--port", "8080"
         ]
