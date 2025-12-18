@@ -21,18 +21,39 @@ LLM_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generati
 LLM_API_KEY = config.DASHSCOPE_API_KEY  # 使用配置文件中的API密钥
 
 # 提示词模板
-PROMPT_TEMPLATE = """
-请根据以下对话历史，生成一个合适的回复：
-
-对话历史：
-{conversation_history}
-阅读对话历史，现在假设你就是说这些话的人。
+PROMPT_TEMPLATE_PRIVATE = """
+你是一个模仿别人说话的聊天专家，你擅长根据历史发言模仿一个人的的语言和表达风格。
 现在你看到了聊天对象给你发的消息：
 {current_message}
-请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格。请只返回一条回复内容，不要有任何其他的多余词句。
+
+根据这条消息，假如你要模仿的人以前是这么回复的：
+{conversation_history}
+
+请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格。不要偏离对话历史的表达风格。请生成不要生成没有逻辑的回复。
+不要把没有关联的事情拼接在一起，不要有任何其他的多余词句。
+请只返回1条消息，不要换行。
+
 """
 
-def auto_reply(contact_name: str, current_message: str, auto_reply_enabled: bool = True) -> dict:
+PROMPT_TEMPLATE_GROUP = """
+你是一个模仿别人说话的聊天专家，你擅长根据历史发言模仿一个人的的语言和表达风格。
+现在你看到了聊天对象在群聊中发的消息：
+{current_message}
+
+根据这条消息，假如你要模仿的人以前是这么回复的：
+{conversation_history}
+
+请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格。不要偏离对话历史的表达风格。请生成不要生成没有逻辑的回复。
+不要把没有关联的事情拼接在一起，不要有任何其他的多余词句。
+请只返回1条消息，不要换行。
+在生成回复之前，有必要决定是否应该回复。如果该条消息没有强烈提及你，或者没有与你相关的意思，那么就返回空字符串。
+"""
+
+def auto_reply(contact_name: str, current_message: str, msgtype: str) -> dict:
+    if msgtype == "private":
+        PROMPT_TEMPLATE = PROMPT_TEMPLATE_PRIVATE
+    elif msgtype == "group":
+        PROMPT_TEMPLATE = PROMPT_TEMPLATE_GROUP
     """
     自动回复功能主函数
     
@@ -44,16 +65,16 @@ def auto_reply(contact_name: str, current_message: str, auto_reply_enabled: bool
     Returns:
         dict: 包含是否需要回复和回复内容的字典
     """
-    if not auto_reply_enabled:
-        return {
-            "should_reply": False,
-            "reply_content": "",
-            "reason": "自动回复已禁用"
-        }
+    # if not auto_reply_enabled:
+    #     return {
+    #         "should_reply": False,
+    #         "reply_content": "",
+    #         "reason": "自动回复已禁用"
+    #     }
     
     try:
-        # 1. 使用topk_api_module查找相似聊天记录
-        search_results = topk_api_module.search_messages_api(contact_name, current_message, k=20)
+        # 1. 使用topk_api_module查找相似聊天记录，获取每条消息的下5条回复
+        search_results = topk_api_module.search_messages_api(contact_name, current_message, k=50, n=1)
         
         if not search_results.get("success", False):
             return {
@@ -66,8 +87,20 @@ def auto_reply(contact_name: str, current_message: str, auto_reply_enabled: bool
         conversation_history = []
         for result in search_results.get("results", [])[:100]:  # 只使用最近的100条记录
             content = result.get("content", "")
-            if content:
-                conversation_history.append(content)
+            # 过滤掉"[表情]"内容
+            content = content.replace("[表情]", "")
+            replies = result.get("next_messages", [])
+            #if content:
+                #conversation_history.append(content)
+            if replies:
+                # 遍历回复列表，只取前5条回复的content
+                for reply in replies[:1]:
+                    reply_content = reply.get("content", "")
+                    # 过滤掉"[表情]"内容
+                    reply_content = reply_content.replace("[表情]", "")
+                    if reply_content:
+                        conversation_history.append(reply_content)
+        
         print(f"历史聊天记录：{conversation_history}")
         
         # 3. 构建提示词
@@ -173,9 +206,10 @@ def call_llm_api(prompt: str) -> dict:
 # 测试示例
 if __name__ == "__main__":
     # 示例：测试与"OmoT"的自动回复
-    test_message = "好想要一个樱花妹啊"
-    result = auto_reply("OmoT", test_message)
+    test_message = "我是你爸"
+    result = auto_reply("OmoT", test_message, "group")
     
     print(f"是否需要回复: {result['should_reply']}")
     print(f"回复内容: {result['reply_content']}")
     print(f"原因: {result['reason']}")
+    print(result)
