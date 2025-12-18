@@ -180,3 +180,23 @@ AttributeError: 'File' object has no attribute 'type'
 [2025-12-18 11:42:13,451.451] INFO     [MainThread|MainProcess] ncatbot.plugin_system.builtin_plugin.unified_registry.plugin (logger.py:info:129) | 命令前缀集合: ['/', '!']
 [2025-12-18 11:43:48,873.873] INFO     [MainThread|MainProcess] httpx (logger.py:info:129) | HTTP Request: GET https://njc-download.ftn.qq.com/ftn_handler/778748d78748cbbc0c8fd746ed23f52a0364a02cdb808ca3e370b2c174c4776338c8bc1995d2d47482ef623ecc284452594b92457c181a61112092fdd64837d0/?fname= "HTTP/1.1 200 OK"
 [2025-12-18 11:43:59,309.309] INFO     [MainThread|MainProcess] httpx (logger.py:info:129) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhRZvThMiHRw9PL2mnNl6kGC-ZDFWhiShgMg_woo8tTKqpzGkQMyBHByb2RQgL2jAVoQSgltA3WzvsP-H_IzRYAxzXoCT8uCAQJneg&rkey=CAQSMFYx-Q-ZAnQ8-z91hQ6ZLDPcLOQbwPKaXiNo0WZULjljRJ48wsQ6Sa4P2YtXjNP2Yg "HTTP/1.1 200 OK"
+[2025-12-18 11:46:31,432.432] INFO     [MainThread|MainProcess] httpx (logger.py:info:129) | HTTP Request: GET https://multimedia.nt.qq.com.cn/download?appid=1407&fileid=EhTZR8QQ-mJhAXOX5fHAyR48fWVg1hiSygMg_wooh5CC85zGkQMyBHByb2RQgL2jAVoQIKqfKwc9Bai9o8VA7yNWRHoCKTCCAQJneg&rkey=CAQSMFYx-Q-ZAnQ8-z91hQ6ZLDPcLOQbwPKaXiNo0WZULjljRJ48wsQ6Sa4P2YtXjNP2Yg "HTTP/1.1 200 OK"
+[2025-12-18 11:54:11,051.051] INFO     [MainThread|MainProcess] Adapter (logger.py:info:129) | NapCat WebSocket 连接已关闭
+[2025-12-18 11:54:11,053.053] INFO     [MainThread|MainProcess] ncatbot.plugin_system (logger.py:info:129) | 插件 SystemManager 卸载成功
+[2025-12-18 11:54:11,054.054] INFO     [MainThread|MainProcess] ncatbot.plugin_system (logger.py:info:129) | 插件 UnifiedRegistryPlugin 卸载成功
+[2025-12-18 11:54:11,058.058] INFO     [MainThread|MainProcess] Client (logger.py:info:129) | Bot 已经正常退出
+[2025-12-18 11:54:20,892.892] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | [BOTQQ]: 2401262719 | [WSURI]: ws://localhost:3002 | [WS_TOKEN]: 114514@Ljn | [ROOT]: 2490162471 | [WEBUI]: http://localhost:6099 | [WEBUI_TOKEN]: napcat
+[2025-12-18 11:54:22,424.424] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 已生成强密码: z,6?z3|u{4{07CD>
+[2025-12-18 11:54:22,426.426] INFO     [MainThread|MainProcess] Config (logger.py:info:129) | 配置已保存到 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/ncatbot/config.yaml
+[2025-12-18 11:54:22,461.461] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载内置插件数 [2]
+[2025-12-18 11:54:22,461.461] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 从 /home/le1zycatt/Desktop/vscode_py/Agent_Penguin/ncatbot/plugins 导入插件
+[2025-12-18 11:54:22,461.461] INFO     [Thread-2 (runner)|MainProcess] PluginLoader (logger.py:info:129) | 已加载插件数 [2]
+[2025-12-18 11:54:22,462.462] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 正在以本地模式运行, 检查中...
+[2025-12-18 11:54:22,467.467] WARNING  [Thread-4 (runner)|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:warning:139) | 测试 websocket 连接失败: [Errno 111] Connect call failed ('127.0.0.1', 3002)
+[2025-12-18 11:54:22,468.468] WARNING  [MainThread|MainProcess] ncatbot.core.adapter.nc.config (logger.py:warning:139) | WebUI 令牌不匹配, 将修改为 NcatBot 配置的令牌: z,6?z3|u{4{07CD>
+[2025-12-18 11:54:22,509.509] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | 正在启动 NapCat 服务
+[2025-12-18 11:54:24,134.134] INFO     [MainThread|MainProcess] adapter.nc.start (logger.py:info:129) | napcat 启动成功
+[2025-12-18 11:54:24,147.147] INFO     [MainThread|MainProcess] ncatbot.core.adapter.nc.launch (logger.py:info:129) | 快速登录成功, 跳过登录引导
+[2025-12-18 11:54:24,149.149] INFO     [MainThread|MainProcess] Adapter (logger.py:info:129) | NapCat WebSocket 连接成功
+[2025-12-18 11:54:24,149.149] INFO     [asyncio_0|MainProcess] Client (logger.py:info:129) | Bot 2401262719 启动成功
+[2025-12-18 11:54:52,374.374] INFO     [MainThread|MainProcess] ncatbot.plugin_system.builtin_plugin.unified_registry.plugin (logger.py:info:129) | 命令前缀集合: ['/', '!']

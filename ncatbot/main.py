@@ -151,27 +151,26 @@ async def handle_files(event, message_type):
 async def handle_video_or_record(event, message_type):
     raw = event.raw_message or ""
 
-    # 只处理 video
     if "[CQ:video" not in raw:
         return
 
     print("检测到视频消息:", raw)
 
-    # 从 raw_message 里粗暴取 url（CQ 码格式是稳定的）
     import re
+    import html
 
     m = re.search(r"url=([^,\]]+)", raw)
     if not m:
-        print("未找到视频 url，放弃下载")
+        print("未找到视频 url")
         return
 
-    url = m.group(1)
+    # ⚠️ CQ 码里的 url 是 HTML 转义的
+    url = html.unescape(m.group(1))
 
     filename = f"video_{event.message_id}_{int(time.time())}.mp4"
     save_path = os.path.join(DATA_DIR, filename)
 
     try:
-        # ⚠️ 立刻下载
         download_temp_video(url, save_path)
         print("视频已保存:", save_path)
 
@@ -193,7 +192,8 @@ async def handle_video_or_record(event, message_type):
 
     except Exception as e:
         print("视频下载失败:", e)
-        await event.reply(text="视频接收失败")
+        await event.reply(text="视频下载失败")
+
 
 
 
