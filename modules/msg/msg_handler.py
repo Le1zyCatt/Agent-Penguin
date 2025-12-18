@@ -9,10 +9,7 @@ import config
 from .doc_processor import extract_text_from_file
 from modules.comic_translator.utils.paddle_ocr import image_to_base64
 
-# 确保保存目录存在
 os.makedirs(config.HISTORY_JSON_DIR, exist_ok=True)
-MEDIA_LOG_DIR = os.path.join(config.DATA_DIR, "history_media")
-os.makedirs(MEDIA_LOG_DIR, exist_ok=True)
 
 def _perform_ocr(image_path):
     """
