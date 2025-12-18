@@ -11,7 +11,7 @@ napcat:
   ws_token: 114514@Ljn
   ws_listen_ip: localhost
   webui_uri: http://localhost:6099
-  webui_token: 6bDa>I|$5YJJ?G2,
+  webui_token: z,6?z3|u{4{07CD>
   enable_webui: true
   check_napcat_update: false
   stop_napcat: false
