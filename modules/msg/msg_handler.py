@@ -248,3 +248,81 @@ def get_recent_messages(contact_id: str, limit: int = 50, include_media: bool = 
 
     # 因为是倒序找的，最后要反转回来，变成正常的时间顺序 (旧 -> 新)
     return "\n".join(reversed(collected_messages))
+
+def get_contact_list():
+    """
+    遍历 history 目录，返回所有聊天列表。
+    文件名即为 contact_id (群号或好友QQ)。
+    内容根据最后一条消息判断类型和时间。
+    """
+    if not os.path.exists(config.HISTORY_JSON_DIR):
+        return []
+
+    contacts = []
+    files = os.listdir(config.HISTORY_JSON_DIR)
+    
+    for f in files:
+        if not f.endswith(".json"):
+            continue
+            
+        file_path = os.path.join(config.HISTORY_JSON_DIR, f)
+        # 1. 获取 ID：文件名即 ID (如 "8937283.json" -> "8937283")
+        contact_id = os.path.splitext(f)[0]
+        
+        try:
+            # 读取文件内容
+            with open(file_path, "r", encoding="utf-8") as json_file:
+                data = json.load(json_file)
+                
+            if not data:
+                continue
+            
+            # 2. 获取元数据：基于最后一条消息
+            last_msg = data[-1]
+            msg_count = len(data)
+            
+            # 根据你提供的数据结构提取字段
+            msg_type = last_msg.get("msgtype", "unknown")  # group / private
+            last_time = last_msg.get("time", "")
+            
+            # 3. 构建返回对象
+            contacts.append({
+                "id": contact_id,       # 这是群号或好友QQ号 (用于传回给后端进行总结)
+                "type": msg_type,       # "group" 或 "private" (前端可用来画图标)
+                "count": msg_count,     # 消息条数
+                "last_active": last_time, # 最后活跃时间
+                "preview": last_msg.get("text", "")[:20] # 预览最后一条消息
+            })
+            
+        except Exception as e:
+            print(f"[MsgHandler] 读取列表文件 {f} 失败: {e}")
+            continue
+
+    # 4. 排序：按最后活跃时间倒序排列 (最新的在最前)
+    # 注意：你的时间格式是 "2025-12-19 20:12:16"，可以直接字符串排序
+    contacts.sort(key=lambda x: x["last_active"], reverse=True)
+
+    return contacts
+
+def get_raw_recent_messages(contact_id: str, limit: int = 100):
+    """
+    【新函数】获取原始的消息记录列表（字典格式），用于程序处理而非直接显示。
+    """
+    # 1. 尝试直接拼接路径
+    file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+    
+    # 2. 只有当文件存在时才读取
+    if not os.path.exists(file_path):
+        return []
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # 截取最近的 limit 条 (注意 data 是按时间正序存的，我们要最后 limit 条)
+        recent_data = data[-limit:] if limit > 0 else data
+        return recent_data
+        
+    except Exception as e:
+        print(f"[MsgHandler] 读取原始记录失败: {e}")
+        return []

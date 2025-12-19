@@ -9,9 +9,10 @@ from typing import List
 
 import config
 
+from modules.msg.notifier import extract_important_messages
 from scripts.vector_db_manager import VectorDBManager
 from modules.msg.doc_processor import process_document_summary
-from modules.msg.msg_handler import save_incoming_message, get_recent_messages
+from modules.msg.msg_handler import save_incoming_message, get_recent_messages, get_contact_list
 from modules.msg.auto_reply import auto_reply  # 导入自动回复模块
 #总结需要修改
 from modules.msg.translator import BailianTranslator
@@ -89,7 +90,32 @@ app = FastAPI(lifespan=lifespan, title="MangaTranslator & ChatRAG API")
 os.makedirs(config.TEMP_DIR, exist_ok=True)
 
 
-# 接受并保存消息
+# ===============================
+# 功能：获取聊天对象列表
+# ===============================
+@app.get("/api/msg/list")
+async def list_chats(type_filter: str = None):
+    """
+    获取聊天会话列表
+    type_filter: 可选 "group" 或 "private"，不传则返回所有
+    """
+    try:
+        all_contacts = get_contact_list()
+        
+        # 筛选逻辑
+        if type_filter:
+            filtered = [c for c in all_contacts if c["type"] == type_filter]
+            return {"status": "success", "data": filtered}
+            
+        return {"status": "success", "data": all_contacts}
+    except Exception as e:
+        return {"status": "error", "msg": str(e)}
+
+
+
+# ===============================
+# 功能1：保存并自动回复
+# ===============================
 @app.post("/api/message/save")
 async def save_msg(request: Request):
     """
@@ -130,7 +156,7 @@ async def save_msg(request: Request):
 
 
 # ===============================
-# 功能1：查找聊天记录
+# 功能2：查找聊天记录
 # ===============================
 @app.get("/api/chat/search")
 async def search_chat(contact: str, query: str, k: int = 10):
@@ -190,7 +216,7 @@ async def search_chat(contact: str, query: str, k: int = 10):
 
 
 # ===============================
-# 功能2: 文档翻译与总结
+# 功能3: 文档翻译与总结
 # ===============================
 @app.post("/api/doc/process")
 async def process_doc(
@@ -228,53 +254,53 @@ async def process_doc(
 
 @app.post("/api/msg/summarize")
 async def summarize_chat_history(
-    contact_id: str = Form(...),      # 前端传来的 ID，如 "123456"
-    limit: int = Form(50),            # 总结最近多少条
+    contact_id: str = Form(...),      # 前端用户点击列表项后，传回这里的 ID (即群号)
+    limit: int = Form(100),           # 总结条数，建议默认加大一点
     target_lang: str = Form("Chinese")
 ):
     """
-    读取最近消息并调用 AI 总结
+    读取指定群/人的最近消息并调用 AI 总结
     """
     try:
-        print(f"[Summarize] 正在请求总结联系人: {contact_id}, 最近 {limit} 条")
+        print(f"[Summarize] 收到总结请求 -> ID: {contact_id}, 条数: {limit}")
         
-        # 1. 获取最近聊天文本 (强制包含媒体内容的OCR信息)
+        # 1. 获取最近聊天文本
+        # include_media=True 确保图片里的 OCR 文字也能被 AI 读到
         chat_text = get_recent_messages(contact_id, int(limit), include_media=True)
         
         if not chat_text:
-            return {"summary": f"未找到 ID 为 {contact_id} 的聊天记录，或记录为空。"}
+            return {"success": False, "summary": f"未找到 ID 为 {contact_id} 的聊天记录，或记录为空。"}
 
-        # 2. 调用 AI (复用 translator)
-        # 注意：这里假设 chat_text 可能很长，BailianTranslator 内部最好有长度截断或分段处理
+        # 2. 构建 Prompt 或直接调用翻译器
         translator = BailianTranslator(config.DASHSCOPE_API_KEY)
         
-        # 这里的 mode="summarize" 取决于你 translator.py 里的实现
         summary = translator._call_api(chat_text, mode="summarize", target_lang=target_lang)
         
-        return {"summary": summary}
+        return {"success": True, "summary": summary}
 
     except Exception as e:
         print(f"总结失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"summary": f"总结发生错误: {str(e)}"}
+        return {"success": False, "summary": f"总结发生错误: {str(e)}"}
 
-
-# ===============================
-#  API 3: 自动回复
-# ===============================
-@app.post("/api/msg/auto_response")
-async def auto_response():
-    return
 
 
 # ===============================
 #  API 4: 重要消息提示
 # ===============================
 @app.post("/api/msg/notification")
-async def msg_notification():
-    return
-
+async def msg_notification(
+    contact_id: str = Form(...),  # 指定要检查的群号或QQ号
+    limit: int = Form(100)        # 检查最近多少条
+):
+    """
+    AI 智能提取指定会话中的重要消息（任务、DDL、文件等）
+    """
+    try:
+        print(f"[Notification] 正在分析 {contact_id} 的重要消息...")
+        result = extract_important_messages(contact_id, limit)
+        return result
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
 
 
 if __name__ == "__main__":
