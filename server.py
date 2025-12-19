@@ -3,6 +3,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from contextlib import asynccontextmanager
 import shutil
 import os
+import subprocess
+import time
 from typing import List
 
 import config
@@ -10,17 +12,56 @@ import config
 from scripts.vector_db_manager import VectorDBManager
 from modules.msg.doc_processor import process_document_summary
 from modules.msg.msg_handler import save_incoming_message, get_recent_messages
+from modules.msg.auto_reply import auto_reply  # 导入自动回复模块
 #总结需要修改
 from modules.msg.translator import BailianTranslator
 
 # 全局状态
 db_manager = None
+ocr_process = None
 
 
-# 初始化向量数据库
+# 初始化向量数据库和OCR服务
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db_manager
+    global db_manager, ocr_process
+    
+    # 1. 启动OCR服务
+    print("[System] 正在启动OCR服务...")
+    try:
+        # 使用conda环境执行命令
+        cmd = [
+            "conda", "run", "-n", "paddle-ocr",
+            "paddlex", "--serve", "--pipeline", "./modules/comic_translator/OCR.yaml",
+            "--host", "0.0.0.0",
+            "--port", "8080"
+        ]
+        
+        # 在后台启动OCR服务
+        ocr_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        
+        # 增加等待时间，确保服务完全启动
+        time.sleep(10)
+        
+        # 检查服务是否正常启动
+        if ocr_process.poll() is None:
+            print("[System] OCR服务启动成功")
+        else:
+            print("[System] ⚠️ OCR服务启动失败")
+            # 打印启动失败的输出信息
+            if ocr_process.stdout:
+                stdout, _ = ocr_process.communicate()
+                print(f"[OCR启动日志] {stdout}")
+        
+    except Exception as e:
+        print(f"[System] ⚠️ OCR服务启动异常: {e}")
+    
+    # 2. 加载向量数据库
     print(f"[System] 正在加载向量数据库: {config.VECTOR_DB_PATH}")
     try:
         db_manager = VectorDBManager(db_path=config.VECTOR_DB_PATH) 
@@ -29,6 +70,20 @@ async def lifespan(app: FastAPI):
         print(f"[System] ⚠️ 数据库加载失败 (请检查路径): {e}")
 
     yield
+    
+    # 3. 关闭OCR服务
+    if ocr_process and ocr_process.poll() is None:
+        print("[System] 正在关闭OCR服务...")
+        try:
+            ocr_process.terminate()
+            # 等待进程结束
+            ocr_process.wait(timeout=5)
+            print("[System] OCR服务已关闭")
+        except subprocess.TimeoutExpired:
+            print("[System] ⚠️ OCR服务关闭超时，强制终止")
+            ocr_process.kill()
+        except Exception as e:
+            print(f"[System] ⚠️ 关闭OCR服务时发生异常: {e}")
 
 app = FastAPI(lifespan=lifespan, title="MangaTranslator & ChatRAG API")
 os.makedirs(config.TEMP_DIR, exist_ok=True)
@@ -44,9 +99,33 @@ async def save_msg(request: Request):
         data = await request.json()
         # 调用 msg_handler 中的保存逻辑
         save_result = save_incoming_message(data)
-        return {"status": "success", "detail": save_result, "reply": ""} # 默认不回复
+        
+        # 检查是否启用自动回复
+        if config.AUTO_REPLY_ENABLED:
+            print("[System] 自动回复已启用，正在生成回复...")
+            
+            # 提取自动回复所需的参数
+            msg_type = data.get("message_type")  # group / private
+            contact_id = str(data.get("group_id")) if msg_type == "group" else str(data.get("user_id"))
+            current_message = data.get("raw_message", "")
+            
+            # 获取当前消息及其前50条消息
+            recent_messages = get_recent_messages(contact_id, limit=50, include_media=True)
+            
+            # 调用自动回复模块，传入聊天历史
+            reply_result = auto_reply(contact_id, current_message, msg_type, recent_messages)
+            
+            # 如果需要回复，则返回回复内容
+            if reply_result.get("should_reply", False):
+                reply_content = reply_result.get("reply_content", "")
+                print(f"[AutoReply] 生成回复: {reply_content}")
+                return {"status": "success", "detail": save_result, "reply": reply_content}
+        
+        # 默认不回复或自动回复未启用
+        return {"status": "success", "detail": save_result, "reply": ""}
+        
     except Exception as e:
-        print(f"消息保存失败: {e}")
+        print(f"消息处理失败: {e}")
         return {"status": "error", "msg": str(e)}
 
 

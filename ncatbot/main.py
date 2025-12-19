@@ -6,13 +6,13 @@ import os
 import time
 
 from ncatbot.core import BotClient, GroupMessageEvent, PrivateMessageEvent
-from ncatbot.core.event import Text, Image, File
+from ncatbot.core.event import Image, File
 from ncatbot.utils import config
 
 # ========== 配置 ==========
 AGENT_PENGUIN_BASE_URL = "http://localhost:8000"
 
-config.set_bot_uin("201382404")
+config.set_bot_uin("2401262719")
 config.set_root("2812656625")
 config.set_ws_uri("ws://localhost:3002")
 config.set_ws_token("myj123")
@@ -42,11 +42,9 @@ def send_chat_message_to_agent(data: dict):
     except Exception as e:
         print("[NCatBot] Agent 通信异常:", e)
         return None
+
+
 def download_temp_video(url: str, save_path: str):
-    """
-    下载 QQ 视频（rkey 临时 URL）
-    必须立刻调用
-    """
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Referer": "https://im.qq.com/"
@@ -55,6 +53,20 @@ def download_temp_video(url: str, save_path: str):
     r.raise_for_status()
     with open(save_path, "wb") as f:
         f.write(r.content)
+
+
+# ================= 发送消息 API 封装 =================
+
+async def send_reply(event, reply_content, message_type):
+    """
+    使用 ncatbot 正确 API 发送普通文本 (非引用).
+    """
+    msg = [{"type": "text", "data": {"text": reply_content}}]
+
+    if message_type == "group":
+        await bot.api.send_group_msg(group_id=event.group_id, message=msg)
+    else:
+        await bot.api.send_private_msg(user_id=event.user_id, message=msg)
 
 
 # ================= 公共处理函数 =================
@@ -82,9 +94,12 @@ async def handle_text(event, message_type):
     }
 
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
+    response = await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
 
-    await event.reply(text=f"收到文本：{text_content}")
+    if response and response.get("reply"):
+        reply_content = response["reply"]
+        print(f"发送自动回复: {reply_content}")
+        await send_reply(event, reply_content, message_type)
 
 
 async def handle_images(event, message_type):
@@ -112,9 +127,14 @@ async def handle_images(event, message_type):
         }
 
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
+        response = await loop.run_in_executor(
+            None, send_chat_message_to_agent, agent_data
+        )
 
-    await event.reply(text="收到图片")
+        if response and response.get("reply"):
+            reply_content = response["reply"]
+            print(f"发送自动回复（图片）: {reply_content}")
+            await send_reply(event, reply_content, message_type)
 
 
 async def handle_files(event, message_type):
@@ -141,11 +161,8 @@ async def handle_files(event, message_type):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
 
-            await event.reply(text=f"收到文件：{file.get_file_name()}")
-
         except Exception as e:
             print("文件处理失败:", e)
-            await event.reply(text="文件处理失败")
 
 
 async def handle_video_or_record(event, message_type):
@@ -164,9 +181,7 @@ async def handle_video_or_record(event, message_type):
         print("未找到视频 url")
         return
 
-    # ⚠️ CQ 码里的 url 是 HTML 转义的
     url = html.unescape(m.group(1))
-
     filename = f"video_{event.message_id}_{int(time.time())}.mp4"
     save_path = os.path.join(DATA_DIR, filename)
 
@@ -188,13 +203,8 @@ async def handle_video_or_record(event, message_type):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, send_chat_message_to_agent, agent_data)
 
-        await event.reply(text="收到视频（已保存）")
-
     except Exception as e:
         print("视频下载失败:", e)
-        await event.reply(text="视频下载失败")
-
-
 
 
 # ================= 群聊 =================

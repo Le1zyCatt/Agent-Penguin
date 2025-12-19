@@ -1,4 +1,4 @@
-root: '2490162471'
+root: '2812656625'
 bt_uin: '2401262719'
 enable_webui_interaction: true
 debug: false
@@ -8,10 +8,10 @@ skip_ncatbot_install_check: false
 websocket_timeout: 15
 napcat:
   ws_uri: ws://localhost:3002
-  ws_token: 114514@Ljn
+  ws_token: myj123
   ws_listen_ip: localhost
   webui_uri: http://localhost:6099
-  webui_token: EenQ-{07#>Yq2PCR
+  webui_token: -]:Unp{ppAEHUM5*
   enable_webui: true
   check_napcat_update: false
   stop_napcat: false
