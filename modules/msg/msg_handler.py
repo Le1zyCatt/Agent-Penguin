@@ -84,10 +84,15 @@ def save_incoming_message(data: dict):
     
     if msg_type == "group":
         contact_id = str(data.get("group_id"))
-        sender_name = data.get("sender", {}).get("nickname", "Unknown")
+        # NapCat发送的群消息中没有sender字段，直接使用user_id作为发送者ID
+        sender_id = str(data.get("user_id"))
+        # 尝试从data中获取sender_name，如果没有则使用"Unknown"
+        sender_name = data.get("sender_name", "Unknown")
     else:
         contact_id = str(data.get("user_id"))
-        sender_name = data.get("sender", {}).get("nickname", "Unknown")
+        sender_id = contact_id
+        # 尝试从data中获取sender_name，如果没有则使用"Unknown"
+        sender_name = data.get("sender_name", "Unknown")
 
     timestamp = data.get("time", int(time.time()))
     dt_object = datetime.fromtimestamp(timestamp)
@@ -130,7 +135,7 @@ def save_incoming_message(data: dict):
 
     # 5. 构造统一的记录结构
     new_record = {
-        "id": msg_id,
+        "id": sender_id,  # 使用发送者的QQ号作为记录ID
         "name": sender_name,
         "time": time_str,
         "text": save_text,          # 简短文本，如 "[图片]"
