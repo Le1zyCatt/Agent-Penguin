@@ -12,6 +12,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from scripts import topk_api_module
+from .whether_reply import whether_reply  # 导入 whether_reply 模块
 import config  # 导入配置模块
 
 # 百炼API配置
@@ -25,14 +26,14 @@ PROMPT_TEMPLATE_PRIVATE = """
 现在你看到了聊天对象给你发的消息：
 {current_message}
 
-根据这条消息，假如你要模仿的人以前是这么回复的：
+根据这条消息，假如你要模仿的人以前和别人的聊天是这样的风格：
 {conversation_history}
 
 请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格。
 不要偏离对话历史的表达风格。
 不要生成没有逻辑的回复。
 不要有任何多余词句。
-请只返回1条消息，不要换行。
+请只返回1条消息，不要换行，要有标点，不要太长。
 """
 
 PROMPT_TEMPLATE_GROUP = """
@@ -40,14 +41,11 @@ PROMPT_TEMPLATE_GROUP = """
 现在你看到了聊天对象在群聊中发的消息：
 {current_message}
 
-根据这条消息，假如你要模仿的人以前是这么回复的：
+根据这条消息，假如你要模仿的人以前和别人的聊天是这样的风格：
 {conversation_history}
 
-请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格。
-不要偏离对话历史的表达风格。
-不要生成没有逻辑的回复。
-不要有任何多余词句。
-请只返回1条消息，不要换行。
+请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格，但尽量不要用原话回复。
+请只返回1条消息，不要换行，要有标点，不要太长。
 """
 
 PROMPT_TEMPLATE_SHOULD_REPLY = """
@@ -69,7 +67,22 @@ PROMPT_TEMPLATE_SHOULD_REPLY = """
 
 # ===== 主函数（接口不变） =====
 
-def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_history: str = "") -> dict:
+def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_history: str = "", force_reply: bool = False) -> dict:
+    """
+    自动回复主函数
+    :param contact_name: 联系人名称
+    :param current_message: 当前消息
+    :param msgtype: 消息类型 (private/group)
+    :param chat_history: 聊天历史
+    :param force_reply: 强制回复标志，如果为 True 则跳过 whether_reply 判断
+    """
+    print(f"[AutoReply Debug] 开始处理自动回复")
+    print(f"[AutoReply Debug] 联系人: {contact_name}")
+    print(f"[AutoReply Debug] 当前消息: {current_message}")
+    print(f"[AutoReply Debug] 消息类型: {msgtype}")
+    print(f"[AutoReply Debug] 强制回复模式: {force_reply}")
+    print(f"[AutoReply Debug] 聊天历史预览: {chat_history[:300]}...")  # 打印前300个字符用于调试
+
     if msgtype == "private":
         PROMPT_TEMPLATE = PROMPT_TEMPLATE_PRIVATE
     elif msgtype == "group":
@@ -78,28 +91,26 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
         PROMPT_TEMPLATE = PROMPT_TEMPLATE_PRIVATE
 
     # =====================================================
-    # Step 1：判断是否需要回复（只用当前聊天上下文）
+    # Step 1：判断是否需要回复（除非强制回复）
     # =====================================================
-    should_reply_prompt = PROMPT_TEMPLATE_SHOULD_REPLY.format(
-        conversation_history=chat_history,
-        current_message=current_message
-    )
+    if not force_reply:
+        # 使用 whether_reply 模块判断是否需要回复
+        # 将 chat_history 转换为 whether_reply 需要的格式
+        history_list = parse_chat_history(chat_history)
+        print(f"[AutoReply Debug] 解析后的聊天历史: {history_list[:3]}...")  # 打印前3条用于调试
 
-    should_reply_response = call_llm_api(should_reply_prompt)
+        should_reply_result = whether_reply(contact_name, current_message, history_list)
+        print(f"[AutoReply Debug] whether_reply 结果: {should_reply_result}")
 
-    if not should_reply_response.get("success", False):
-        return {
-            "should_reply": False,
-            "reply_content": "",
-            "reason": f"判断是否需要回复失败: {should_reply_response.get('error', '未知错误')}"
-        }
-
-    if should_reply_response.get("content", "").strip() != "需要回复":
-        return {
-            "should_reply": False,
-            "reply_content": "",
-            "reason": "模型判断不需要回复"
-        }
+        if not should_reply_result.get("should_reply", False):
+            return {
+                "should_reply": False,
+                "reply_content": "",
+                "reason": should_reply_result.get("reason", "模型判断不需要回复")
+            }
+    else:
+        # 如果是强制回复模式（例如被@时），跳过 whether_reply 判断
+        print("[AutoReply] 强制回复模式，跳过 whether_reply 判断")
 
     # =====================================================
     # Step 2：确认需要回复 → 从向量库提取历史风格回复
@@ -111,9 +122,10 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
             #contact_name,
             "OmoT",
             current_message,
-            k=50,
-            n=1
+            k=config.TOP_K,
+            n=config.NEXT_N,
         )
+        print(f"[AutoReply Debug] 向量库搜索结果: {search_results.get('success', False)}")
 
         if search_results.get("success", False):
             for result in search_results.get("results", [])[:100]:
@@ -125,6 +137,10 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
 
     except Exception as e:
         print(f"获取历史聊天风格失败: {e}")
+
+    print(f"[AutoReply Debug] 从向量库获取的历史回复数量: {len(conversation_history)}")
+    if conversation_history:
+        print(f"[AutoReply Debug] 历史回复预览: {conversation_history[:3]}")  # 打印前3条用于调试
 
     if not conversation_history:
         return {
@@ -140,6 +156,7 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
         conversation_history="\n".join(conversation_history),
         current_message=current_message
     )
+    print(f"[AutoReply Debug] 生成回复的提示词预览: {prompt[:500]}...")  # 打印前500个字符用于调试
 
     llm_response = call_llm_api(prompt)
 
@@ -151,6 +168,7 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
         }
 
     reply_content = llm_response.get("content", "").strip()
+    print(f"[AutoReply Debug] 生成的回复内容: {reply_content}")
 
     if not reply_content:
         return {
@@ -164,6 +182,41 @@ def auto_reply(contact_name: str, current_message: str, msgtype: str, chat_histo
         "reply_content": reply_content,
         "reason": "成功生成回复"
     }
+
+
+def parse_chat_history(chat_history: str) -> list:
+    """
+    将聊天历史字符串解析为 whether_reply 模块需要的格式
+    :param chat_history: 格式为 "[时间] 发送者: 内容" 的字符串
+    :return: [{"sender": "name", "content": "message", "time": "timestamp"}] 格式的列表
+    """
+    if not chat_history:
+        return []
+
+    lines = chat_history.strip().split('\n')
+    history_list = []
+
+    for line in lines:
+        if not line.strip():
+            continue
+
+        # 解析格式: [2023-10-27 10:00:00] 懒猫: [图片] (内容详情: 图片里的文字...)
+        if '] ' in line and ':' in line.split('] ')[1] if len(line.split('] ')) > 1 else False:
+            try:
+                time_and_sender, content = line.split('] ', 1)
+                time_part = time_and_sender[1:]  # 去掉开头的 [
+                sender, content = content.split(': ', 1)
+
+                history_list.append({
+                    "sender": sender.strip(),
+                    "content": content.strip(),
+                    "time": time_part
+                })
+            except:
+                # 如果解析失败，跳过这一行
+                continue
+
+    return history_list
 
 # ===== LLM API =====
 

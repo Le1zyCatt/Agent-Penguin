@@ -125,31 +125,49 @@ async def save_msg(request: Request):
         data = await request.json()
         # 调用 msg_handler 中的保存逻辑
         save_result = save_incoming_message(data)
-        
+
         # 检查是否启用自动回复
         if config.AUTO_REPLY_ENABLED:
             print("[System] 自动回复已启用，正在生成回复...")
-            
+
+            # 检查是否被 @ 了，如果是则直接回复，跳过 whether_reply 判断
+            is_at_me = data.get("is_at", False)
+
             # 提取自动回复所需的参数
             msg_type = data.get("message_type")  # group / private
             contact_id = str(data.get("group_id")) if msg_type == "group" else str(data.get("user_id"))
             current_message = data.get("raw_message", "")
-            
+
             # 获取当前消息及其前50条消息
             recent_messages = get_recent_messages(contact_id, limit=50, include_media=True)
-            
-            # 调用自动回复模块，传入聊天历史
-            reply_result = auto_reply(contact_id, current_message, msg_type, recent_messages)
-            
-            # 如果需要回复，则返回回复内容
-            if reply_result.get("should_reply", False):
-                reply_content = reply_result.get("reply_content", "")
-                print(f"[AutoReply] 生成回复: {reply_content}")
-                return {"status": "success", "detail": save_result, "reply": reply_content}
-        
+
+            # 如果是被 @ 的消息，则直接回复，跳过 whether_reply 判断
+            if is_at_me:
+                print("[System] 消息包含@，直接生成回复...")
+                print(f"[Debug] 查询到的聊天数据: {recent_messages[:500]}...")  # 打印前500个字符用于调试
+                # 调用自动回复模块，传入聊天历史，并设置 force_reply=True 跳过 whether_reply 判断
+                reply_result = auto_reply(contact_id, current_message, msg_type, recent_messages, force_reply=True)
+
+                # 如果有回复内容，则返回
+                if reply_result.get("reply_content"):
+                    reply_content = reply_result.get("reply_content", "")
+                    print(f"[AutoReply] @触发回复: {reply_content}")
+                    return {"status": "success", "detail": save_result, "reply": reply_content}
+            else:
+                # 没有被 @，按正常流程走 whether_reply 判断
+                print(f"[Debug] 查询到的聊天数据: {recent_messages[:500]}...")  # 打印前500个字符用于调试
+                # 调用自动回复模块，传入聊天历史
+                reply_result = auto_reply(contact_id, current_message, msg_type, recent_messages)
+
+                # 如果需要回复，则返回回复内容
+                if reply_result.get("should_reply", False):
+                    reply_content = reply_result.get("reply_content", "")
+                    print(f"[AutoReply] 生成回复: {reply_content}")
+                    return {"status": "success", "detail": save_result, "reply": reply_content}
+
         # 默认不回复或自动回复未启用
         return {"status": "success", "detail": save_result, "reply": ""}
-        
+
     except Exception as e:
         print(f"消息处理失败: {e}")
         return {"status": "error", "msg": str(e)}

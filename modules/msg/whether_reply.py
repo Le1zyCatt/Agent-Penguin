@@ -13,6 +13,8 @@ parent_dir = os.path.dirname(os.path.dirname(current_dir))  # Agent_Penguin/
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+import sys
+sys.path.append(parent_dir)  # 确保父目录在路径中
 import config  # 导入配置模块
 
 # 百炼API配置
@@ -20,7 +22,35 @@ LLM_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generati
 LLM_API_KEY = config.DASHSCOPE_API_KEY  # 使用配置文件中的API密钥
 
 # 判断是否需要回复的提示词模板
-PROMPT_TEMPLATE = """
+def get_prompt_template():
+    """
+    获取提示词模板，如果配置了机器人名称则使用它
+    """
+    try:
+        bot_name = getattr(config, 'BOT_NAME', '机器人')  # 获取配置中的机器人名称，默认为'机器人'
+        return f"""
+请根据以下对话历史和当前消息，判断是否需要生成回复。
+
+对话历史：
+{{conversation_history}}
+
+当前收到的消息：
+{{current_message}}
+
+判断规则：
+1. 如果当前消息明确提到了你，或者你是被提及的对象，应该回复，返回"YES"
+2. 如果当前消息是无关紧要的表情、符号、或者明显不需要回复的内容，可以不回复，返回"NO"
+3. 能不回复就不回复，返回"NO"。
+4. 如果当前消息是转发的信息、广告或与对话无关的内容，可以不回复，返回"NO"
+5. 请注意这些消息是群聊的消息，你需要根据群聊的上下文判断是否需要回复。
+6. 你的名字是{bot_name}，如果叫了你的名字，你就需要回复。
+7. 如果有人让你别说话，那就返回"NO"。
+
+请只返回"YES"或"NO"，不要有任何其他的多余词句。大多数情况下，你应该回复"NO"。
+"""
+    except:
+        # 如果获取配置失败，返回基础模板
+        return """
 请根据以下对话历史和当前消息，判断是否需要生成回复。
 
 对话历史：
@@ -32,11 +62,12 @@ PROMPT_TEMPLATE = """
 判断规则：
 1. 如果当前消息明确提到了你，或者你是被提及的对象，应该回复，返回"YES"
 2. 如果当前消息是无关紧要的表情、符号、或者明显不需要回复的内容，可以不回复，返回"NO"
-3. 如果当前消息是命令或请求，应该回复，返回"YES"
+3. 能不回复就不回复，返回"NO"。
 4. 如果当前消息是转发的信息、广告或与对话无关的内容，可以不回复，返回"NO"
 5. 请注意这些消息是群聊的消息，你需要根据群聊的上下文判断是否需要回复。
+6. 如果有人让你别说话，那就返回"NO"。
 
-请只返回"YES"或"NO"，不要有任何其他的多余词句。
+请只返回"YES"或"NO"，不要有任何其他的多余词句。大多数情况下，你应该回复"NO"。
 """
 
 def call_llm_api(prompt: str) -> dict:
@@ -103,12 +134,12 @@ def call_llm_api(prompt: str) -> dict:
 def whether_reply(contact_name: str, current_message: str, recent_history: list = None) -> dict:
     """
     判断是否需要自动回复的主函数
-    
+
     Args:
         contact_name (str): 聊天对象姓名
         current_message (str): 当前用户输入的消息
         recent_history (list): 最近的聊天历史记录，格式为[{"sender": "name", "content": "message", "time": "timestamp"}]
-        
+
     Returns:
         dict: 包含是否需要回复和原因的字典
     """
@@ -121,25 +152,25 @@ def whether_reply(contact_name: str, current_message: str, recent_history: list 
                 content = msg.get("content", "")
                 if sender and content:
                     conversation_history += f"{sender}: {content}\n"
-        
+
         # 构建提示词
-        prompt = PROMPT_TEMPLATE.format(
+        prompt = get_prompt_template().format(
             conversation_history=conversation_history.strip(),
             current_message=current_message
         )
-        
+
         # 调用大模型API
         llm_response = call_llm_api(prompt)
-        
+
         if not llm_response.get("success", False):
             return {
                 "should_reply": False,
                 "reason": f"调用大模型失败: {llm_response.get('error', '未知错误')}"
             }
-        
+
         # 解析大模型回复
         reply_content = llm_response.get("content", "").strip().upper()
-        
+
         # 判断结果
         if reply_content == "YES":
             return {
@@ -157,7 +188,7 @@ def whether_reply(contact_name: str, current_message: str, recent_history: list 
                 "should_reply": False,
                 "reason": f"模型返回无效结果: {reply_content}"
             }
-            
+
     except Exception as e:
         return {
             "should_reply": False,
