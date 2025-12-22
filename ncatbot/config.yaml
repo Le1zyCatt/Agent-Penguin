@@ -11,7 +11,7 @@ napcat:
   ws_token: myj123
   ws_listen_ip: localhost
   webui_uri: http://localhost:6099
-  webui_token: AKJKx4I+!C8b[eOB
+  webui_token: bf}(o1}0kb=0f>F>
   enable_webui: true
   check_napcat_update: false
   stop_napcat: false

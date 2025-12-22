@@ -9,6 +9,8 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
 TEMP_DIR = os.path.join(DATA_DIR, "received_images")
 FONT_PATH = os.path.join(DATA_DIR, "fonts", "simhei.ttf") # 确保你有这个字体
+TRANS_DOC_PATH = os.path.join(DATA_DIR, "translated_docs")
+TRANS_IMG_PATH = os.path.join(DATA_DIR, "translated_images")
 
 # 2. 向量数据库 (Project B)
 # 注意：你的 vector_db_manager 可能默认读的是相对路径，这里我们显式指定绝对路径会更稳

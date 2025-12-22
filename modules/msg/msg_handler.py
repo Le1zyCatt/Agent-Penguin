@@ -326,3 +326,105 @@ def get_raw_recent_messages(contact_id: str, limit: int = 100):
     except Exception as e:
         print(f"[MsgHandler] 读取原始记录失败: {e}")
         return []
+    
+def get_recent_files(contact_id: str, limit: int = 5):
+    """
+    【新函数】从聊天记录中查找最近发送的 n 个文件
+    返回格式: [{"name": "test.docx", "path": "/abs/path/...", "time": "..."}]
+    """
+    # 复用之前的逻辑获取原始消息列表
+    # 注意：这里我们取 limit*5 是为了防止最近几条全是文本，导致找不到文件，
+    # 所以多取一点历史记录，然后再在内存里过滤
+    raw_msgs = get_raw_recent_messages(contact_id, limit=limit * 10) 
+    
+    file_list = []
+    # 倒序遍历（从最新到最旧）
+    for msg in reversed(raw_msgs):
+        if len(file_list) >= limit:
+            break
+            
+        # 筛选 content_type 为 file 的消息
+        if msg.get("content_type") == "file" and msg.get("local_path"):
+            # 确保文件实际存在
+            if os.path.exists(msg.get("local_path")):
+                file_list.append({
+                    "name": os.path.basename(msg.get("local_path")),
+                    "path": msg.get("local_path"),
+                    "time": msg.get("time"),
+                    # 如果之前存过文件提取内容，也可以带上，省去重复读取
+                    "extracted_content": msg.get("extracted_content", "") 
+                })
+    
+    return file_list
+
+def get_all_files(contact_id: str):
+    """
+    【新函数】获取指定联系人/群聊历史记录中的所有文件列表
+    用于前端展示文件列表供用户选择翻译
+    """
+    file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+    
+    if not os.path.exists(file_path):
+        return []
+
+    file_list = []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # 遍历所有记录 (倒序，让最新的文件排在前面)
+        for msg in reversed(data):
+            if msg.get("content_type") == "file":
+                local_path = msg.get("local_path", "")
+                
+                # 仅返回依然存在于磁盘上的文件
+                if local_path and os.path.exists(local_path):
+                    file_list.append({
+                        "file_name": os.path.basename(local_path),
+                        "file_path": local_path,  # 这是传给翻译接口的关键参数
+                        "sender": msg.get("name", "Unknown"),
+                        "time": msg.get("time"),
+                        "size": os.path.getsize(local_path) # 可选：返回文件大小
+                    })
+                    
+    except Exception as e:
+        print(f"[MsgHandler] 获取文件列表失败: {e}")
+    
+    return file_list
+
+
+def get_all_images(contact_id: str):
+    """
+    【新函数】获取指定联系人/群聊历史记录中的所有图片列表
+    用于前端展示图片列表供用户选择翻译
+    """
+    file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+    
+    if not os.path.exists(file_path):
+        return []
+
+    image_list = []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # 倒序遍历，让最新的图片排在前面
+        for msg in reversed(data):
+            if msg.get("content_type") == "image":
+                local_path = msg.get("local_path", "")
+                
+                # 仅返回依然存在于磁盘上的图片
+                if local_path and os.path.exists(local_path):
+                    image_list.append({
+                        "file_name": os.path.basename(local_path),
+                        "file_path": local_path,  # 这是传给翻译接口的关键参数
+                        "sender": msg.get("name", "Unknown"),
+                        "time": msg.get("time"),
+                        # 可以选择性地返回已有的 OCR 内容作为预览
+                        "ocr_preview": msg.get("extracted_content", "")[:50] 
+                    })
+                    
+    except Exception as e:
+        print(f"[MsgHandler] 获取图片列表失败: {e}")
+    
+    return image_list

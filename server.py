@@ -1,21 +1,27 @@
 # server.py
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import shutil
 import os
 import subprocess
 import time
 from typing import List
+import shutil
+import json
 
 import config
 
 from modules.msg.notifier import extract_important_messages
 from scripts.vector_db_manager import VectorDBManager
-from modules.msg.doc_processor import process_document_summary
-from modules.msg.msg_handler import save_incoming_message, get_recent_messages, get_contact_list
+from modules.msg.doc_processor import extract_text_from_file, save_text_to_docx
+from modules.msg.msg_handler import save_incoming_message, get_recent_messages, get_contact_list, get_recent_files, get_all_files, get_all_images
 from modules.msg.auto_reply import auto_reply  # 导入自动回复模块
-#总结需要修改
-from modules.msg.translator import BailianTranslator
+from modules.msg.translator import BailianTranslator as msg_trans
+
+from modules.comic_translator.utils.paddle_ocr import image_to_base64, ocr_image
+from modules.comic_translator.utils.translator3 import BailianTranslator as img_trans
+from modules.comic_translator.utils.cv_inpaint import process_image_with_ocr_data
 
 # 全局状态
 db_manager = None
@@ -111,6 +117,49 @@ async def list_chats(type_filter: str = None):
     except Exception as e:
         return {"status": "error", "msg": str(e)}
 
+# ===============================
+# 功能：获取特定聊天的所有文件
+# ===============================
+@app.get("/api/doc/list")
+async def list_chat_files(contact_id: str):
+    """
+    获取指定会话中的所有文件列表
+    前端调用此接口展示文件 -> 用户选择 -> 调用 /api/doc/translate
+    """
+    try:
+        # 调用 handler 获取文件列表
+        files = get_all_files(contact_id)
+        
+        return {
+            "success": True, 
+            "contact_id": contact_id,
+            "count": len(files),
+            "data": files
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# 功能：获取特定聊天的所有图片
+# ===============================
+@app.get("/api/image/list")
+async def list_chat_images(contact_id: str):
+    """
+    获取指定会话中的所有图片列表
+    前端调用此接口展示图片缩略图 -> 用户选择 -> 调用 /api/image/translate
+    """
+    try:
+        images = get_all_images(contact_id)
+        
+        return {
+            "success": True, 
+            "contact_id": contact_id,
+            "count": len(images),
+            "data": images
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # ===============================
@@ -234,39 +283,196 @@ async def search_chat(contact: str, query: str, k: int = 10):
 
 
 # ===============================
-# 功能3: 文档翻译与总结
+# API 3.1: 多文档总结 (Summarize Recent Files)
 # ===============================
-@app.post("/api/doc/process")
-async def process_doc(
-    request: Request
+@app.post("/api/doc/summarize")
+async def summarize_docs(
+    contact_id: str = Form(...), # 群号/用户ID
+    limit: int = Form(5),        # 总结最近几个文件
+    target_lang: str = Form("Chinese")
 ):
     try:
-        data = await request.json()
-        file_path = data.get("file_path")
-        # 核心点：这里接收 main.py 传过来的 task_type
-        # 如果没传，默认就当作 summarize
-        task_type = data.get("task_type", "summarize") 
-        target_lang = data.get("target_lang", "Chinese")
+        # 1. 获取最近的文件列表
+        files = get_recent_files(contact_id, limit)
         
-        # 校验路径
-        if not file_path or not os.path.exists(file_path):
-            return {"success": False, "error": f"文件路径不存在: {file_path}"}
+        if not files:
+            return {"success": False, "summary": "该对话最近没有发送过文件。"}
 
-        # 执行处理
-        # process_document_summary 函数会根据 task_type 决定是总结还是翻译
-        result_text = process_document_summary(file_path, task_type, target_lang)
+        # 2. 拼接所有文件的内容
+        combined_text = ""
+        file_names = []
         
+        for f in files:
+            file_names.append(f['name'])
+            content = f.get('extracted_content', "")
+            
+            # 如果历史记录里没有提取过内容，现场读取
+            if not content:
+                print(f"[Doc] 正在实时读取文件: {f['path']}")
+                content = extract_text_from_file(f['path'], max_chars=2000)
+            
+            combined_text += f"\n\n=== 文件名: {f['name']} (发送时间: {f['time']}) ===\n{content}"
+
+        # 3. 构建 Prompt
+        prompt = (
+            f"以下是用户最近发送的 {len(files)} 个文件的内容片段。\n"
+            f"请用{target_lang}对这些文件进行综合总结，指出它们之间的关联（如果有），"
+            f"并提取每个文件的核心要点。\n\n"
+            f"{combined_text}"
+        )
+
+        # 4. 调用 AI
+        translator = msg_trans(config.DASHSCOPE_API_KEY)
+        summary = translator._call_api(prompt, mode="custom") # 使用 custom 模式透传 prompt
+
         return {
             "success": True, 
-            "task": task_type,
-            "result": result_text
+            "summary": summary,
+            "scanned_files": file_names
         }
 
     except Exception as e:
+        print(f"文档总结出错: {e}")
         return {"success": False, "error": str(e)}
 
+
 # ===============================
-#  功能3: 消息总结   默认最近50条（或者根据时间范围限定，有待商榷）
+# API 3.2: 单文档翻译 (Translate & Download)
+# ===============================
+@app.post("/api/doc/translate")
+async def translate_doc(
+    file_path: str = Form(...), 
+    target_lang: str = Form("Chinese")
+):
+    try:
+        if not os.path.exists(file_path):
+            return {"success": False, "error": "文件不存在"}
+            
+        # 1. 读取文件原文
+        original_text = extract_text_from_file(file_path, max_chars=5000)
+        
+        if not original_text:
+            return {"success": False, "error": "无法读取文件内容或内容为空"}
+
+        # 2. 调用 AI 进行翻译
+        translator = msg_trans(config.DASHSCOPE_API_KEY)
+        translated_text = translator._call_api(original_text, mode="translate", target_lang=target_lang)
+        
+        # 3. 【修改点】生成翻译后的 Word 文档
+        base_name = os.path.basename(file_path)
+        name_no_ext = os.path.splitext(base_name)[0]
+        output_filename = f"{name_no_ext}_translated.docx"
+
+        # === 修改开始：使用 config 中定义的临时目录或专门的输出目录 ===
+        # 确保 config.DATA_DIR 下有一个 outputs 文件夹
+        output_dir = config.TRANS_DOC_PATH
+        os.makedirs(output_dir, exist_ok=True) # 程序会自动创建这个目录，且通常拥有其权限
+
+        output_path = os.path.join(output_dir, output_filename)
+        # === 修改结束 ===
+        
+        save_text_to_docx(translated_text, output_path)
+        
+        # 4. 返回文件流供前端下载
+        return FileResponse(
+            path=output_path, 
+            filename=output_filename, 
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+
+    except Exception as e:
+        print(f"文档翻译出错: {e}")
+        return {"success": False, "error": str(e)}
+    
+# ===============================
+# API 3.3: 单图片翻译 (Translate & Download)
+# ===============================
+@app.post("/api/image/translate")
+async def translate_image(
+    file_path: str = Form(...),      # 前端传来的原始图片绝对路径
+    target_lang: str = Form("Chinese") # 目标语言
+):
+    """
+    接收本地图片路径，执行 OCR -> 翻译 -> 回填，返回处理后的图片文件
+    """
+    # 1. 基础校验
+    if not os.path.exists(file_path):
+        return {"success": False, "error": f"图片文件不存在: {file_path}"}
+        
+    # 定义中间文件和最终输出文件的路径
+    # 为了不污染原始保存目录，我们统一输出到 config.TEMP_DIR 或一个专门的 outputs 目录
+    output_dir = config.TRANS_IMG_PATH
+    os.makedirs(output_dir, exist_ok=True)
+
+    filename = os.path.basename(file_path)
+    name_no_ext = os.path.splitext(filename)[0]
+    
+    # 中间 OCR JSON 结果文件
+    ocr_json_path = os.path.join(output_dir, f"{name_no_ext}_ocr.json")
+    # 翻译后的 JSON 结果文件
+    translated_json_path = os.path.join(output_dir, f"{name_no_ext}_translated.json")
+    # 最终生成的图片文件
+    final_image_path = os.path.join(output_dir, f"{name_no_ext}_translated.jpg")
+
+    try:
+        print(f"[ImgTrans] 开始处理图片: {file_path}, 目标语言: {target_lang}")
+
+        # 2. OCR 识别
+        print("[ImgTrans] 正在进行 OCR...")
+        base64_image = image_to_base64(file_path)
+        # 调用你提供的 ocr_image 函数 (注意：确保 PaddleOCR 服务已启动)
+        ocr_result = ocr_image(base64_image)
+        
+        # 保存 OCR 结果到临时 JSON (用于后续翻译和回填)
+        with open(ocr_json_path, "w", encoding="utf-8") as f:
+            json.dump(ocr_result, f, ensure_ascii=False, indent=2)
+
+        # 3. 文本翻译
+        print("[ImgTrans] 正在翻译文本...")
+        # 初始化你提供的翻译器
+        translator = img_trans(config.DASHSCOPE_API_KEY)
+        # 调用翻译整个 JSON 文件的方法
+        translated_data = translator.translate_json_file(ocr_json_path, target_lang=target_lang)
+        
+        # 保存翻译后的 JSON
+        with open(translated_json_path, "w", encoding="utf-8") as f:
+            json.dump(translated_data, f, ensure_ascii=False, indent=2)
+
+        # 4. 图片回填 (擦除原文本并写入新文本)
+        print("[ImgTrans] 正在进行图片回填...")
+        # 调用你提供的回填函数
+        # 注意：需要提供一个支持中文的字体路径，在 config.py 中配置 FONT_PATH
+        process_image_with_ocr_data(
+            file_path,             # 原图路径
+            translated_json_path,  # 翻译后的 JSON 路径
+            final_image_path,      # 输出图片路径
+            font_path=config.FONT_PATH # 字体路径
+        )
+        
+        print(f"[ImgTrans] 处理完成，输出路径: {final_image_path}")
+
+        # 5. 返回最终图片文件
+        return FileResponse(
+            path=final_image_path,
+            filename=os.path.basename(final_image_path),
+            media_type="image/jpeg"
+        )
+
+    except Exception as e:
+        print(f"[ImgTrans] 图片翻译出错: {e}")
+        # 出错时尝试清理临时文件
+        for p in [ocr_json_path, translated_json_path]:
+            if os.path.exists(p):
+                os.remove(p)
+        return {"success": False, "error": str(e)}
+    finally:
+        # 可选：清理中间 JSON 文件，保留最终图片
+        if os.path.exists(ocr_json_path): os.remove(ocr_json_path)
+        if os.path.exists(translated_json_path): os.remove(translated_json_path)
+
+
+# ===============================
+#  功能4: 消息总结   默认最近50条（或者根据时间范围限定，有待商榷）
 # ===============================
 # server.py
 
@@ -290,7 +496,7 @@ async def summarize_chat_history(
             return {"success": False, "summary": f"未找到 ID 为 {contact_id} 的聊天记录，或记录为空。"}
 
         # 2. 构建 Prompt 或直接调用翻译器
-        translator = BailianTranslator(config.DASHSCOPE_API_KEY)
+        translator = msg_trans(config.DASHSCOPE_API_KEY)
         
         summary = translator._call_api(chat_text, mode="summarize", target_lang=target_lang)
         
@@ -303,7 +509,7 @@ async def summarize_chat_history(
 
 
 # ===============================
-#  API 4: 重要消息提示
+#  API 5: 重要消息提示
 # ===============================
 @app.post("/api/msg/notification")
 async def msg_notification(

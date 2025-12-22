@@ -1,5 +1,6 @@
 # modules/doc_processor.py
 import os
+from docx import Document
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredWordDocumentLoader
 from .translator import BailianTranslator
 import config
@@ -49,3 +50,18 @@ def process_document_summary(file_path: str, task_type: str = "summarize", targe
     translator = BailianTranslator(config.DASHSCOPE_API_KEY)
     result = translator._call_api(full_text, mode=task_type, target_lang=target_lang)
     return result
+
+def save_text_to_docx(text: str, output_path: str):
+    """
+    将文本保存为 Word 文档
+    """
+    doc = Document()
+    # 按换行符分割段落，避免所有文字挤在一段
+    paragraphs = text.split('\n')
+    for p in paragraphs:
+        if p.strip():
+            doc.add_paragraph(p)
+            
+    doc.save(output_path)
+    return output_path
+    
