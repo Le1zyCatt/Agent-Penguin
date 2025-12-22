@@ -25,3 +25,6 @@ OCR_URL = f"http://localhost:{OCR_PORT}/ocr"
 
 # 5. 自动回复配置
 AUTO_REPLY_ENABLED = True  # 自动回复标志位，设置为True时启用自动回复
+BOT_NAME = "耄仙人"
+TOP_K = 30 # 从向量数据库中检索的Top K个文档
+NEXT_N = 10 # 接下来的N条对话消息

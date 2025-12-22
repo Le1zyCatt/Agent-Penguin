@@ -7,17 +7,21 @@ import time
 
 from ncatbot.core import BotClient, GroupMessageEvent, PrivateMessageEvent
 from ncatbot.core.event import Image, File
+from ncatbot.core.event.message_segment import At, MessageArray
 from ncatbot.utils import config
 
 # ========== 配置 ==========
 AGENT_PENGUIN_BASE_URL = "http://localhost:8000"
 
-config.set_bot_uin("201382404")
+config.set_bot_uin("2401262719")
 config.set_root("2812656625")
 config.set_ws_uri("ws://localhost:3002")
 config.set_ws_token("myj123")
 config.set_webui_uri("http://localhost:6099")
 config.set_webui_token("napcat")
+
+# 机器人QQ号（需要与config.set_bot_uin保持一致）
+BOT_UIN = "2401262719"
 
 # ========== 创建 BotClient ==========
 bot = BotClient()
@@ -72,12 +76,16 @@ async def send_reply(event, reply_content, message_type):
 # ================= 公共处理函数 =================
 
 async def handle_text(event, message_type):
+    # 检查是否被 @ 了
+    is_at_me = check_if_at(event.message, BOT_UIN)
+
     texts = event.message.filter_text()
     if not texts:
         return
 
     text_content = "".join(t.text for t in texts)
     print(f"收到{message_type}文本:", text_content)
+    print(f"是否被@了: {is_at_me}")
 
     agent_data = {
         "post_type": "message",
@@ -86,6 +94,7 @@ async def handle_text(event, message_type):
         "group_id": getattr(event, "group_id", None),
         "message_id": event.message_id,
         "raw_message": text_content,
+        "is_at": is_at_me,  # 添加是否被@的信息
         "sender": {
             "user_id": event.user_id,
             "nickname": event.sender.nickname if event.sender else "Unknown",
@@ -100,6 +109,15 @@ async def handle_text(event, message_type):
         reply_content = response["reply"]
         print(f"发送自动回复: {reply_content}")
         await send_reply(event, reply_content, message_type)
+
+
+def check_if_at(message_array: MessageArray, target_qq: str):
+    """检测消息中是否包含 @ 某个用户"""
+    for segment in message_array:
+        if isinstance(segment, At):
+            if segment.qq == target_qq or segment.qq == "all":  # 检查是否@了目标用户或全体成员
+                return True
+    return False
 
 
 async def handle_images(event, message_type):
