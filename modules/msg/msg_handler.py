@@ -286,15 +286,28 @@ def get_contact_list():
             # 根据你提供的数据结构提取字段
             msg_type = last_msg.get("msgtype", "unknown")  # group / private
             last_time = last_msg.get("time", "")
+            user_name = last_msg.get("name","unknown")
+            group_name = last_msg.get("group_name","unkown")
             
             # 3. 构建返回对象
-            contacts.append({
-                "id": contact_id,       # 这是群号或好友QQ号 (用于传回给后端进行总结)
-                "type": msg_type,       # "group" 或 "private" (前端可用来画图标)
-                "count": msg_count,     # 消息条数
-                "last_active": last_time, # 最后活跃时间
-                "preview": last_msg.get("text", "")[:20] # 预览最后一条消息
-            })
+            if msg_type == "group":
+                contacts.append({
+                    "id": contact_id,       # 这是群号或好友QQ号 (用于传回给后端进行总结)
+                    "group_name": group_name,
+                    "type": msg_type,       # "group" 或 "private" (前端可用来画图标)
+                    "count": msg_count,     # 消息条数
+                    "last_active": last_time, # 最后活跃时间
+                    "preview": last_msg.get("text", "")[:20] # 预览最后一条消息
+                })
+            else:
+                contacts.append({
+                    "id": contact_id,       # 这是群号或好友QQ号 (用于传回给后端进行总结)
+                    "user_name": user_name,
+                    "type": msg_type,       # "group" 或 "private" (前端可用来画图标)
+                    "count": msg_count,     # 消息条数
+                    "last_active": last_time, # 最后活跃时间
+                    "preview": last_msg.get("text", "")[:20] # 预览最后一条消息
+                })
             
         except Exception as e:
             print(f"[MsgHandler] 读取列表文件 {f} 失败: {e}")
