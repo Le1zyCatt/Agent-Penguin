@@ -18,6 +18,7 @@ from modules.msg.doc_processor import extract_text_from_file, save_text_to_docx
 from modules.msg.msg_handler import save_incoming_message, get_recent_messages, get_contact_list, get_recent_files, get_all_files, get_all_images
 from modules.msg.auto_reply import auto_reply  # 导入自动回复模块
 from modules.msg.translator import BailianTranslator as msg_trans
+from modules.msg.reply_settings import get_reply_setting, set_reply_setting, get_all_reply_settings
 
 from modules.comic_translator.utils.paddle_ocr import image_to_base64, ocr_image
 from modules.comic_translator.utils.translator3 import BailianTranslator as img_trans
@@ -25,14 +26,15 @@ from modules.comic_translator.utils.cv_inpaint import process_image_with_ocr_dat
 
 # 全局状态
 db_manager = None
+multi_db_manager = None
 ocr_process = None
 
 
 # 初始化向量数据库和OCR服务
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global db_manager, ocr_process
-    
+    global db_manager, multi_db_manager, ocr_process
+
     # 1. 启动OCR服务
     print("[System] 正在启动OCR服务...")
     try:
@@ -43,7 +45,7 @@ async def lifespan(app: FastAPI):
             "--host", "0.0.0.0",
             "--port", "8080"
         ]
-        
+
         # 在后台启动OCR服务
         ocr_process = subprocess.Popen(
             cmd,
@@ -51,10 +53,10 @@ async def lifespan(app: FastAPI):
             stderr=subprocess.STDOUT,
             text=True
         )
-        
+
         # 增加等待时间，确保服务完全启动
         time.sleep(10)
-        
+
         # 检查服务是否正常启动
         if ocr_process.poll() is None:
             print("[System] OCR服务启动成功")
@@ -64,20 +66,25 @@ async def lifespan(app: FastAPI):
             if ocr_process.stdout:
                 stdout, _ = ocr_process.communicate()
                 print(f"[OCR启动日志] {stdout}")
-        
+
     except Exception as e:
         print(f"[System] ⚠️ OCR服务启动异常: {e}")
-    
-    # 2. 加载向量数据库
-    print(f"[System] 正在加载向量数据库: {config.VECTOR_DB_PATH}")
+
+    # 2. 加载多向量数据库管理器
+    print(f"[System] 正在初始化多向量数据库管理器")
     try:
-        db_manager = VectorDBManager(db_path=config.VECTOR_DB_PATH) 
-        print("[System] 向量数据库加载完毕")
+        multi_db_manager = MultiVectorDBManager(model_name="models/embedding/m3e-small")
+        # 加载默认向量数据库
+        success = multi_db_manager.switch_database(config.VECTOR_DB_PATH)
+        if success:
+            print("[System] 默认向量数据库加载完毕")
+        else:
+            print(f"[System] ⚠️ 默认数据库加载失败: {config.VECTOR_DB_PATH}")
     except Exception as e:
-        print(f"[System] ⚠️ 数据库加载失败 (请检查路径): {e}")
+        print(f"[System] ⚠️ 多向量数据库管理器初始化失败: {e}")
 
     yield
-    
+
     # 3. 关闭OCR服务
     if ocr_process and ocr_process.poll() is None:
         print("[System] 正在关闭OCR服务...")
@@ -175,16 +182,17 @@ async def save_msg(request: Request):
         # 调用 msg_handler 中的保存逻辑
         save_result = save_incoming_message(data)
 
-        # 检查是否启用自动回复
-        if config.AUTO_REPLY_ENABLED:
-            print("[System] 自动回复已启用，正在生成回复...")
+        # 提取自动回复所需的参数
+        msg_type = data.get("message_type")  # group / private
+        contact_id = str(data.get("group_id")) if msg_type == "group" else str(data.get("user_id"))
+
+        # 检查是否启用自动回复（检查特定聊天的设置，如果没有则使用全局设置）
+        if get_reply_setting(contact_id):
+            print(f"[System] 聊天 {contact_id} 自动回复已启用，正在生成回复...")
 
             # 检查是否被 @ 了，如果是则直接回复，跳过 whether_reply 判断
             is_at_me = data.get("is_at", False)
 
-            # 提取自动回复所需的参数
-            msg_type = data.get("message_type")  # group / private
-            contact_id = str(data.get("group_id")) if msg_type == "group" else str(data.get("user_id"))
             current_message = data.get("raw_message", "")
 
             # 获取当前消息及其前50条消息
@@ -230,49 +238,11 @@ async def search_chat(contact: str, query: str, k: int = 10):
     """
     在向量数据库中搜索聊天记录
     """
-    if not db_manager:
+    if not multi_db_manager or not multi_db_manager.get_current_db():
         return {"results": [{"content": "错误：数据库未加载"}]}
     try:
-        # 调用 vector_db_manager 的搜索
-        # 注意：这里假设 db_manager.search_by_contact 返回的是 Document 对象列表
-        results = db_manager.search_by_contact(contact, query, k)
-        
-        #使用百炼进行总结回答
-        # if not results:
-        #     return {
-        #         "success": True, 
-        #         "answer": "没有找到相关的聊天记录。", 
-        #         "sources": []
-        #     }
-
-        # # 2. 拼接上下文供 AI 阅读
-        # context_str = ""
-        # sources = []
-        # for r in results:
-        #     meta = r.metadata
-        #     # 拼接格式：[时间] 发送者: 内容
-        #     snippet = f"[{meta.get('time', '未知时间')}] {meta.get('name', '未知')}: {r.page_content}"
-        #     context_str += snippet + "\n"
-        #     sources.append({"sender": meta.get('name'), "content": r.page_content})
-
-        # # 3. 构建 Prompt
-        # prompt = (
-        #     f"你是一个聊天记录助手。请根据以下搜索到的聊天片段，回答用户的问题。\n"
-        #     f"用户问题：{query}\n\n"
-        #     f"聊天片段参考：\n{context_str}\n\n"
-        #     f"请用自然流畅的语言回答，如果片段里没有答案，请直说。"
-        # )
-
-        # # 4. 调用 LLM (复用你的 translator)
-        # translator = BailianTranslator(config.DASHSCOPE_API_KEY)
-        # # 这里复用 _call_api，mode 可以传 None 或自定义字符串让它透传 prompt
-        # ai_answer = translator._call_api(prompt, mode="custom") 
-
-        # return {
-        #     "success": True,
-        #     "answer": ai_answer,
-        #     "sources": sources # 返回来源供前端参考
-        # }
+        # 调用 multi vector_db_manager 的搜索
+        results = multi_db_manager.search_by_contact(contact, query, k)
 
         # 最普通的返回
         data = [{"content": r.page_content, "metadata": r.metadata} for r in results]
@@ -523,6 +493,139 @@ async def msg_notification(
         print(f"[Notification] 正在分析 {contact_id} 的重要消息...")
         result = extract_important_messages(contact_id, limit)
         return result
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
+
+
+# ===============================
+#  API 6: 自动回复设置管理
+# ===============================
+
+@app.get("/api/reply/settings")
+async def get_reply_settings(contact_id: str = None):
+    """
+    获取自动回复设置
+    - 如果提供 contact_id，返回指定聊天的设置
+    - 如果不提供 contact_id，返回所有聊天的设置
+    """
+    try:
+        if contact_id:
+            # 获取特定聊天的设置
+            enabled = get_reply_setting(contact_id)
+            return {
+                "success": True,
+                "contact_id": contact_id,
+                "enabled": enabled
+            }
+        else:
+            # 获取所有聊天的设置
+            all_settings = get_all_reply_settings()
+            return {
+                "success": True,
+                "settings": all_settings
+            }
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
+
+
+@app.post("/api/reply/settings")
+async def update_reply_settings(
+    contact_id: str = Form(...),
+    enabled: bool = Form(...)
+):
+    """
+    更新指定聊天的自动回复设置
+    """
+    try:
+        success = set_reply_setting(contact_id, enabled)
+        if success:
+            return {
+                "success": True,
+                "contact_id": contact_id,
+                "enabled": enabled,
+                "msg": f"已{'启用' if enabled else '禁用'} {contact_id} 的自动回复"
+            }
+        else:
+            return {
+                "success": False,
+                "msg": "设置保存失败"
+            }
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
+
+
+# ===============================
+#  API 7: 向量数据库管理
+# ===============================
+
+@app.get("/api/vector-db/list")
+async def list_vector_dbs():
+    """
+    获取所有可用的向量数据库列表
+    """
+    try:
+        if not multi_db_manager:
+            return {"success": False, "msg": "多向量数据库管理器未初始化"}
+
+        available_dbs = multi_db_manager.get_available_databases(base_dir=config.DATA_DIR)
+        current_db_path = multi_db_manager.get_current_db_path()
+
+        return {
+            "success": True,
+            "databases": available_dbs,
+            "current_db": current_db_path
+        }
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
+
+
+@app.post("/api/vector-db/switch")
+async def switch_vector_db(
+    db_path: str = Form(...)
+):
+    """
+    切换到指定的向量数据库
+    """
+    try:
+        if not multi_db_manager:
+            return {"success": False, "msg": "多向量数据库管理器未初始化"}
+
+        success = multi_db_manager.switch_database(db_path)
+        if success:
+            return {
+                "success": True,
+                "current_db": multi_db_manager.get_current_db_path(),
+                "msg": f"已成功切换到数据库: {db_path}"
+            }
+        else:
+            return {
+                "success": False,
+                "msg": f"切换数据库失败: {db_path}"
+            }
+    except Exception as e:
+        return {"success": False, "msg": str(e)}
+
+
+@app.get("/api/vector-db/current")
+async def get_current_vector_db():
+    """
+    获取当前使用的向量数据库信息
+    """
+    try:
+        if not multi_db_manager:
+            return {"success": False, "msg": "多向量数据库管理器未初始化"}
+
+        current_db_path = multi_db_manager.get_current_db_path()
+        if current_db_path:
+            return {
+                "success": True,
+                "current_db": current_db_path
+            }
+        else:
+            return {
+                "success": False,
+                "msg": "当前没有加载任何数据库"
+            }
     except Exception as e:
         return {"success": False, "msg": str(e)}
 
