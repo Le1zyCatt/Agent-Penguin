@@ -190,10 +190,20 @@ async def save_msg(request: Request):
         if get_reply_setting(contact_id):
             print(f"[System] 聊天 {contact_id} 自动回复已启用，正在生成回复...")
 
+            current_message = data.get("raw_message", "")
+
             # 检查是否被 @ 了，如果是则直接回复，跳过 whether_reply 判断
             is_at_me = data.get("is_at", False)
 
-            current_message = data.get("raw_message", "")
+            # 如果 is_at 字段不存在或为 False，检查消息内容中是否包含机器人名称
+            if not is_at_me:
+                bot_name = getattr(config, 'BOT_NAME', '耄仙人')  # 获取配置中的机器人名称
+                # 检查原始消息中是否包含机器人名称
+                if bot_name in current_message:
+                    is_at_me = True
+                # 也检查是否是直接称呼机器人名字的消息
+                elif current_message.strip().replace(" ", "").startswith(bot_name.replace(" ", "")):
+                    is_at_me = True
 
             # 获取当前消息及其前50条消息
             recent_messages = get_recent_messages(contact_id, limit=50, include_media=True)

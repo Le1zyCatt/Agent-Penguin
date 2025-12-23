@@ -6,13 +6,15 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
 # 配置
-INPUT_HTML = "data/chat_history/OmoT.html"           # 原始 HTML 文件路径
-OUTPUT_HTML = "data/chat_history/OmoT_full.html"     # 完整 HTML 保存路径
+INPUT_HTML = "data/chat_history/nmbz.html"           # 原始 HTML 文件路径
+OUTPUT_HTML = "data/chat_history/nmbz_full.html"     # 完整 HTML 保存路径
 OUTPUT_JSON_DIR = "data/history_json"     # JSON 保存目录
 ME_NAME = "懒猫"                   # 根据右侧判断自己消息的名字
 SCROLL_PAUSE = 0.5                 # 每次滚动等待时间
 
-os.makedirs(OUTPUT_JSON_DIR, exist_ok=True)
+# 创建所有必要的目录
+os.makedirs(os.path.dirname(OUTPUT_HTML), exist_ok=True)  # 创建 data/chat_history 目录
+os.makedirs(OUTPUT_JSON_DIR, exist_ok=True)               # 创建 data/history_json 目录
 
 # --- Step 1: 用 Selenium 加载完整 HTML ---
 chrome_options = Options()
@@ -74,11 +76,11 @@ for msg in soup.select("div.msg.chat"):
     })
 
 # 按 msgid 排序
-messages.sort(key=lambda x: int(x["id"]))
+messages.sort(key=lambda x: int(x["id"]) if x["id"] is not None else 0)
 
 # 用对方名字命名文件
 if messages:
-    other_name = [m["name"] for m in messages if m["name"] != ME_NAME]
+    other_name = [m["name"] for m in messages if m["name"] != ME_NAME and m["name"] != "未知"]
     if other_name:
         filename = f"{other_name[0]}.json"
     else:
@@ -86,5 +88,8 @@ if messages:
 
     with open(os.path.join(OUTPUT_JSON_DIR, filename), "w", encoding="utf-8") as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
-
-print(f"[INFO] JSON 已保存：{os.path.join(OUTPUT_JSON_DIR, filename)}")
+    
+    print(f"[INFO] JSON 已保存：{os.path.join(OUTPUT_JSON_DIR, filename)}")
+else:
+    print("[WARNING] 未找到任何消息，JSON 文件未创建")
+    filename = "unknown.json"  # 仅为最后的打印语句设置默认值
