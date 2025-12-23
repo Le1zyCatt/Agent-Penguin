@@ -13,7 +13,7 @@ import json
 import config
 
 from modules.msg.notifier import extract_important_messages
-from scripts.vector_db_manager import VectorDBManager
+from scripts.vector_db_manager import MultiVectorDBManager
 from modules.msg.doc_processor import extract_text_from_file, save_text_to_docx
 from modules.msg.msg_handler import save_incoming_message, get_recent_messages, get_contact_list, get_recent_files, get_all_files, get_all_images
 from modules.msg.auto_reply import auto_reply  # 导入自动回复模块

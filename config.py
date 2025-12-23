@@ -6,9 +6,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. 目录路径
 DATA_DIR = os.path.join(BASE_DIR, "data")
+FONT_PATH = os.path.join(BASE_DIR, "fonts", "simhei.ttf") 
 SCRIPTS_DIR = os.path.join(BASE_DIR, "scripts")
 TEMP_DIR = os.path.join(DATA_DIR, "received_images")
-FONT_PATH = os.path.join(DATA_DIR, "fonts", "simhei.ttf") # 确保你有这个字体
 TRANS_DOC_PATH = os.path.join(DATA_DIR, "translated_docs")
 TRANS_IMG_PATH = os.path.join(DATA_DIR, "translated_images")
 

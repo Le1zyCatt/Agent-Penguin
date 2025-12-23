@@ -84,15 +84,16 @@ def save_incoming_message(data: dict):
     
     if msg_type == "group":
         contact_id = str(data.get("group_id"))
-        # NapCat发送的群消息中没有sender字段，直接使用user_id作为发送者ID
         sender_id = str(data.get("user_id"))
         # 尝试从data中获取sender_name，如果没有则使用"Unknown"
-        sender_name = data.get("sender_name", "Unknown")
+        sender_name = data.get("sender", {}).get("nickname","Unknow")
+        group_name = data.get("group_name", "Unknow")
     else:
         contact_id = str(data.get("user_id"))
         sender_id = contact_id
         # 尝试从data中获取sender_name，如果没有则使用"Unknown"
-        sender_name = data.get("sender_name", "Unknown")
+        sender_name = data.get("sender", {}).get("nickname","Unknow")
+        group_name = data.get("group_name", "Unknow")
 
     timestamp = data.get("time", int(time.time()))
     dt_object = datetime.fromtimestamp(timestamp)
@@ -137,6 +138,7 @@ def save_incoming_message(data: dict):
     new_record = {
         "id": sender_id,  # 使用发送者的QQ号作为记录ID
         "name": sender_name,
+        "group_name" : group_name,
         "time": time_str,
         "text": save_text,          # 简短文本，如 "[图片]"
         "content_type": content_type,
