@@ -13,7 +13,7 @@ from ncatbot.utils import config
 # ========== 配置 ==========
 AGENT_PENGUIN_BASE_URL = "http://localhost:8000"
 
-config.set_bot_uin("201382404")
+config.set_bot_uin("2401262719")
 config.set_root("2812656625")
 config.set_ws_uri("ws://localhost:3002")
 config.set_ws_token("myj123")
@@ -31,6 +31,16 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ========== 与 Agent-Penguin 通信 ==========
+async def get_group_name(group_id: str):
+    """获取群名称通过群ID"""
+    try:
+        group_info = await bot.api.get_group_info(group_id)
+        return group_info.group_name
+    except Exception as e:
+        print(f"[NCatBot] 获取群信息失败 {group_id}: {e}")
+        return f"群_{group_id}"  # 返回默认名称
+
+
 def send_chat_message_to_agent(data: dict):
     print(
         "[NCatBot] 发送到 Agent-Penguin:\n"
@@ -87,11 +97,17 @@ async def handle_text(event, message_type):
     print(f"收到{message_type}文本:", text_content)
     print(f"是否被@了: {is_at_me}")
 
+    # 为群聊消息添加群名称
+    group_name = None
+    if message_type == "group":
+        group_name = await get_group_name(event.group_id)
+
     agent_data = {
         "post_type": "message",
         "message_type": message_type,
         "user_id": event.user_id,
         "group_id": getattr(event, "group_id", None),
+        "group_name": group_name,  # 添加群名称
         "message_id": event.message_id,
         "raw_message": text_content,
         "is_at": is_at_me,  # 添加是否被@的信息
@@ -125,6 +141,11 @@ async def handle_images(event, message_type):
     if not images:
         return
 
+    # 为群聊消息添加群名称
+    group_name = None
+    if message_type == "group":
+        group_name = await get_group_name(event.group_id)
+
     for idx, img in enumerate(images, 1):
         try:
             image_path = await img.download(DATA_DIR)
@@ -138,6 +159,7 @@ async def handle_images(event, message_type):
             "message_type": message_type,
             "user_id": event.user_id,
             "group_id": getattr(event, "group_id", None),
+            "group_name": group_name,  # 添加群名称
             "message_id": event.message_id,
             "raw_message": f"[图片 {idx}]",
             "image_path": image_path,
@@ -160,6 +182,11 @@ async def handle_files(event, message_type):
     if not files:
         return
 
+    # 为群聊消息添加群名称
+    group_name = None
+    if message_type == "group":
+        group_name = await get_group_name(event.group_id)
+
     for file in files:
         try:
             file_path = await file.download(DATA_DIR)
@@ -170,6 +197,7 @@ async def handle_files(event, message_type):
                 "message_type": message_type,
                 "user_id": event.user_id,
                 "group_id": getattr(event, "group_id", None),
+                "group_name": group_name,  # 添加群名称
                 "message_id": event.message_id,
                 "raw_message": f"[文件]{file.get_file_name()}",
                 "file_path": file_path,
@@ -203,6 +231,11 @@ async def handle_video_or_record(event, message_type):
     filename = f"video_{event.message_id}_{int(time.time())}.mp4"
     save_path = os.path.join(DATA_DIR, filename)
 
+    # 为群聊消息添加群名称
+    group_name = None
+    if message_type == "group":
+        group_name = await get_group_name(event.group_id)
+
     try:
         download_temp_video(url, save_path)
         print("视频已保存:", save_path)
@@ -212,6 +245,7 @@ async def handle_video_or_record(event, message_type):
             "message_type": message_type,
             "user_id": event.user_id,
             "group_id": getattr(event, "group_id", None),
+            "group_name": group_name,  # 添加群名称
             "message_id": event.message_id,
             "raw_message": "[视频]",
             "video_path": save_path,
