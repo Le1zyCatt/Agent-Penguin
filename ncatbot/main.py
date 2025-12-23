@@ -13,7 +13,7 @@ from ncatbot.utils import config
 # ========== 配置 ==========
 AGENT_PENGUIN_BASE_URL = "http://localhost:8000"
 
-config.set_bot_uin("201382404")
+config.set_bot_uin("2401262719")
 config.set_root("2812656625")
 config.set_ws_uri("ws://localhost:3002")
 config.set_ws_token("myj123")
@@ -21,7 +21,7 @@ config.set_webui_uri("http://localhost:6099")
 config.set_webui_token("napcat")
 
 # 机器人QQ号（需要与config.set_bot_uin保持一致）
-BOT_UIN = "201382404"
+BOT_UIN = "2401262719"
 
 # ========== 创建 BotClient ==========
 bot = BotClient()

@@ -196,8 +196,8 @@ class MultiVectorDBManager:
                 item_path = os.path.join(base_dir, item)
                 if os.path.isdir(item_path):
                     # 检查是否存在向量数据库文件
-                    index_file = os.path.join(item_path, "index.faiss")
-                    pkl_file = os.path.join(item_path, "index.pkl")
+                    index_file = os.path.join(item_path, "nmbz.faiss")
+                    pkl_file = os.path.join(item_path, "nmbz.pkl")
                     if os.path.exists(index_file) and os.path.exists(pkl_file):
                         db_paths.append(item_path)
 
@@ -207,16 +207,16 @@ class MultiVectorDBManager:
             for item in os.listdir(vector_dbs_dir):
                 item_path = os.path.join(vector_dbs_dir, item)
                 if os.path.isdir(item_path):
-                    index_file = os.path.join(item_path, "index.faiss")
-                    pkl_file = os.path.join(item_path, "index.pkl")
+                    index_file = os.path.join(item_path, "nmbz.faiss")
+                    pkl_file = os.path.join(item_path, "nmbz.pkl")
                     if os.path.exists(index_file) and os.path.exists(pkl_file):
                         db_paths.append(item_path)
 
         # 包括默认数据库
         default_db = os.path.join(base_dir, "chat_vector_db")
         if os.path.exists(default_db):
-            index_file = os.path.join(default_db, "index.faiss")
-            pkl_file = os.path.join(default_db, "index.pkl")
+            index_file = os.path.join(default_db, "nmbz.faiss")
+            pkl_file = os.path.join(default_db, "nmbz.pkl")
             if os.path.exists(index_file) and os.path.exists(pkl_file):
                 if default_db not in db_paths:
                     db_paths.append(default_db)

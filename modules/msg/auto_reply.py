@@ -33,7 +33,8 @@ PROMPT_TEMPLATE_PRIVATE = """
 不要偏离对话历史的表达风格。
 不要生成没有逻辑的回复。
 不要有任何多余词句。
-请只返回1条消息，不要换行，要有标点，不要太长。
+请只返回1条消息，不要换行，要有标点，不要太长。请注意聊天记录仅供参考，你真正要回复的是这条消息：
+{current_message}
 """
 
 PROMPT_TEMPLATE_GROUP = """
@@ -45,7 +46,8 @@ PROMPT_TEMPLATE_GROUP = """
 {conversation_history}
 
 请生成给聊天对象的回复。请尽量根据给出的多条对话历史模仿语言和表达风格，但尽量不要用原话回复。
-请只返回1条消息，不要换行，要有标点，不要太长。
+请只返回1条消息，不要换行，要有标点，不要太长。请注意聊天记录仅供参考，你真正要回复的是这条消息：
+{current_message}
 """
 
 PROMPT_TEMPLATE_SHOULD_REPLY = """
