@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchContacts,
   searchChat,
+  getChatHistory,
   summarizeChat,
   notifyChat,
   getReplySetting,
@@ -14,6 +15,7 @@ import {
 import type { Contact } from '../api/types';
 import Modal from '../components/Modal';
 import { useToast } from '../components/ToastProvider';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 const getContactId = (c: Contact): string => {
   return (
@@ -46,6 +48,13 @@ const ChatPage = () => {
   const [testMsg, setTestMsg] = useState('');
   const [messageType, setMessageType] = useState<'group' | 'private'>('group');
 
+  // For local search functionality
+  const [localSearchResults, setLocalSearchResults] = useState<ChatHistoryItem[]>([]);
+  const [isLocalSearching, setIsLocalSearching] = useState(false);
+
+  // Ref for chat bubbles container to auto-scroll
+  const chatBubblesRef = useRef<HTMLDivElement>(null);
+
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -54,12 +63,59 @@ const ChatPage = () => {
     queryFn: () => fetchContacts(typeFilter === 'all' ? undefined : typeFilter),
   });
 
+  // New query to fetch full chat history for local search
+  const historyQuery = useQuery<ChatHistoryItem[]>({
+    queryKey: ['chat-history', selectedContact],
+    queryFn: () => getChatHistory(selectedContact),
+    enabled: !!selectedContact,
+  });
+
   const contacts = useMemo(() => contactsQuery.data || [], [contactsQuery.data]);
 
+  // Local search functionality with debouncing for better performance
+  useEffect(() => {
+    if (keyword.trim() && historyQuery.data) {
+      setIsLocalSearching(true);
+
+      // Add a small delay to avoid excessive filtering while typing
+      const timer = setTimeout(() => {
+        // Perform local search in the fetched history
+        const results = historyQuery.data.filter(item => {
+          const searchText = `${item.text || ''} ${item.extracted_content || ''}`.toLowerCase();
+          return searchText.includes(keyword.toLowerCase().trim());
+        }).slice(0, kValue);
+
+        setLocalSearchResults(results);
+        setIsLocalSearching(false);
+      }, 300); // 300ms delay
+
+      return () => clearTimeout(timer);
+    } else {
+      setLocalSearchResults([]);
+      setIsLocalSearching(false);
+    }
+  }, [keyword, historyQuery.data, kValue]);
+
+  // Auto-scroll to bottom when chat history changes (but not during search)
+  useEffect(() => {
+    // Only auto-scroll when showing full history, not during search
+    if (chatBubblesRef.current && !keyword.trim()) {
+      chatBubblesRef.current.scrollTop = chatBubblesRef.current.scrollHeight;
+    }
+  }, [historyQuery.data, keyword]);
+
+  // Auto-scroll to top when search results change
+  useEffect(() => {
+    if (chatBubblesRef.current && keyword.trim()) {
+      chatBubblesRef.current.scrollTop = 0; // Scroll to top for search results
+    }
+  }, [localSearchResults, keyword]);
+
+  // Original search functionality (for comparison)
   const searchQuery = useQuery({
     queryKey: ['chat-search', selectedContact, keyword, kValue],
     queryFn: () => searchChat(selectedContact, keyword, kValue),
-    enabled: !!selectedContact && keyword.trim().length > 0,
+    enabled: false, // Disable this since we're using local search
   });
 
   const summaryMutation = useMutation({
@@ -169,11 +225,11 @@ const ChatPage = () => {
         </div>
 
         <div className="panel">
-          <div className="section-title">聊天检索</div>
+          <div className="section-title">聊天记录</div>
           <div className="form-row" style={{ marginBottom: 10 }}>
             <input
               className="input"
-              placeholder="输入关键词以检索聊天向量库"
+              placeholder="输入关键词搜索聊天记录"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               style={{ flex: 1 }}
@@ -187,41 +243,95 @@ const ChatPage = () => {
               onChange={(e) => setKValue(Number(e.target.value))}
               style={{ width: 80 }}
             />
-            <button
-              className="button"
-              onClick={() => searchQuery.refetch()}
-              disabled={!selectedContact || !keyword.trim()}
-            >
-              搜索
-            </button>
           </div>
-          {searchQuery.isLoading && <div className="muted">检索中...</div>}
-          {!searchQuery.isLoading && (!searchQuery.data || searchQuery.data.length === 0) && (
-            <div className="muted">暂无结果，输入关键词后搜索。</div>
+
+          {historyQuery.isLoading && <div className="muted">加载聊天记录中...</div>}
+
+          {!historyQuery.isLoading && historyQuery.data && (
+            <div className="muted" style={{ marginBottom: 10 }}>
+              共 {historyQuery.data.length} 条记录
+            </div>
           )}
-          <div className="chat-bubbles">
-            {searchQuery.data?.map((item: any, idx: number) => {
-              const meta = item.metadata || {};
-              const sender = meta.name || meta.sender || '对话';
-              const time = meta.time || '';
-              const content = item.content || item.page_content || '';
-              return (
-                <div key={idx} className="bubble other">
-                  <div className="meta">
-                    {sender} {time && `· ${time}`}
-                  </div>
-                  <div>{content}</div>
-                  {item.next_messages && item.next_messages.length > 0 && (
-                    <div className="muted" style={{ marginTop: 6 }}>
-                      后续 {item.next_messages.length} 条：
-                      {item.next_messages.slice(0, 3).map((n: any, i: number) => (
-                        <div key={i}>- {n.content}</div>
-                      ))}
+
+          {/* Show all chat history if no search term, otherwise show filtered results */}
+          <div className="chat-bubbles" ref={chatBubblesRef}>
+            {(() => {
+              const messagesToDisplay = keyword.trim()
+                ? localSearchResults
+                : (historyQuery.data || []).slice(-(kValue || 50)); // Show last N messages by default
+
+              return messagesToDisplay.map((item: ChatHistoryItem, idx: number) => {
+                const sender = item.name || '未知';
+                const time = item.time || '';
+                // Combine text and extracted content for display
+                const content = (item.text || '') + (item.extracted_content ? ` ${item.extracted_content}` : '');
+
+                // Function to highlight keywords safely
+                const highlightText = (text: string) => {
+                  if (!keyword.trim()) return [<span key={0}>{text}</span>];
+
+                  const regex = new RegExp(`(${keyword})`, 'gi');
+                  const parts = text.split(regex);
+
+                  return parts.map((part, i) => {
+                    const isMatch = regex.test(part);
+                    return isMatch ? (
+                      <mark key={i} style={{ backgroundColor: '#fff9b1', padding: '0 2px' }}>
+                        {part}
+                      </mark>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    );
+                  });
+                };
+
+                return (
+                  <div key={idx} className="bubble other">
+                    <div className="meta">
+                      {sender} {time && `· ${time}`}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    {item.content_type === 'image' && item.local_path ? (
+                      // Render image if content_type is image
+                      <div className="image-container" style={{ margin: '8px 0' }}>
+                        <img
+                          src={`/api/file?path=${encodeURIComponent(item.local_path)}`}
+                          alt={item.local_path.split('/').pop() || 'Chat image'}
+                          style={{
+                            maxWidth: '200px',
+                            maxHeight: '200px',
+                            borderRadius: '8px',
+                            border: '1px solid #ddd',
+                            objectFit: 'contain',
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s, box-shadow 0.2s'
+                          }}
+                          onClick={() => {
+                            // Open image in new tab when clicked
+                            window.open(`/api/file?path=${encodeURIComponent(item.local_path)}`, '_blank');
+                          }}
+                          onLoad={(e) => {
+                            console.log(`Image loaded successfully: ${item.local_path}`);
+                          }}
+                          onError={(e) => {
+                            console.error(`Failed to load image: ${item.local_path}`, e);
+                            const target = e.target as HTMLImageElement;
+                            // Create a simple placeholder image
+                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjBGMEYwIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjODg4Ij5JbWFnZTwvdGV4dD4KPC9zdmc+';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div>{highlightText(content)}</div>
+                    )}
+                    {item.content_type && item.content_type !== 'text' && (
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        [{item.content_type}] {item.local_path && `路径: ${item.local_path}`}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -267,12 +377,12 @@ const ChatPage = () => {
           {vectorDbQuery.isLoading && <div className="muted">加载中...</div>}
           {vectorDbQuery.data && (
             <div className="form-row">
-              <div className="muted" style={{ flex: 1 }}>
-                当前：{vectorDbQuery.data.current_db || '未加载'}
+              <div className="muted" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                当前：{vectorDbQuery.data.current_db?.split('/').pop() || '未加载'}
               </div>
               <select
                 className="select"
-                style={{ flex: 1 }}
+                style={{ flex: 1, minWidth: 0 }}
                 onChange={(e) => switchVectorMutation.mutate(e.target.value)}
                 defaultValue=""
               >
@@ -281,7 +391,7 @@ const ChatPage = () => {
                 </option>
                 {vectorDbQuery.data.databases?.map((db) => (
                   <option key={db} value={db}>
-                    {db}
+                    {db.split('/').pop() || db} {/* 显示路径的最后一部分 */}
                   </option>
                 ))}
               </select>
@@ -317,7 +427,7 @@ const ChatPage = () => {
       </div>
 
       <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="聊天摘要">
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{summaryText || '暂无内容'}</p>
+        {summaryText ? <MarkdownRenderer content={summaryText} /> : <p>暂无内容</p>}
       </Modal>
 
       <Modal open={notifyOpen} onClose={() => setNotifyOpen(false)} title="重要消息">

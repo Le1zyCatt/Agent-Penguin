@@ -5,6 +5,7 @@ import type { Contact } from '../api/types';
 import { downloadBlob } from '../api/client';
 import Modal from '../components/Modal';
 import { useToast } from '../components/ToastProvider';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 const getContactId = (c: Contact): string =>
   c.id || (c as any).contact_id || (c as any).group_id || (c as any).user_id || c.name || c.nickname || '';
@@ -88,9 +89,11 @@ const FilesPage = () => {
 
       <div className="cards-grid">
         {docsQuery.data?.map((doc) => (
-          <div className="card" key={doc.path || doc.name}>
-            <h3>{doc.name}</h3>
-            <p className="muted">{doc.path}</p>
+          <div className="card" key={doc.file_path || doc.file_name}>
+            <h3>{doc.file_name}</h3>
+            <p className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {doc.file_path}
+            </p>
             {doc.time && <p className="muted">时间：{doc.time}</p>}
             {doc.extracted_content && (
               <p className="muted" style={{ maxHeight: 80, overflow: 'auto' }}>
@@ -100,7 +103,7 @@ const FilesPage = () => {
             <div className="pill-row" style={{ marginTop: 8 }}>
               <button
                 className="button"
-                onClick={() => translateMutation.mutate(doc.path)}
+                onClick={() => translateMutation.mutate(doc.file_path)}
                 disabled={translateMutation.isPending}
               >
                 翻译并下载
@@ -123,7 +126,7 @@ const FilesPage = () => {
             style={{ width: 80 }}
           />
         </div>
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{summaryText}</p>
+        {summaryText ? <MarkdownRenderer content={summaryText} /> : <p>暂无内容</p>}
       </Modal>
     </div>
   );

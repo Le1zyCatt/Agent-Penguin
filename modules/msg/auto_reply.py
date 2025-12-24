@@ -1,4 +1,6 @@
 # 自动回复模块
+# 功能：根据聊天历史和当前消息生成智能回复
+# 作者：Agent Penguin 项目组
 
 import requests
 import json
@@ -6,16 +8,16 @@ import sys
 import os
 
 # 获取项目根目录
-current_dir = os.path.dirname(os.path.abspath(__file__))  # modules/msg/
-parent_dir = os.path.dirname(os.path.dirname(current_dir))  # Agent_Penguin/
+current_dir = os.path.dirname(os.path.abspath(__file__))  # 当前目录 modules/msg/
+parent_dir = os.path.dirname(os.path.dirname(current_dir))  # 项目根目录 Agent_Penguin/
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from scripts import topk_api_module
-from .whether_reply import whether_reply  # 导入 whether_reply 模块
+from .whether_reply import whether_reply  # 导入是否回复判断模块
 import config  # 导入配置模块
 
-# 百炼API配置
+# 阿里云通义千问API配置
 LLM_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
 LLM_API_KEY = config.DASHSCOPE_API_KEY
 

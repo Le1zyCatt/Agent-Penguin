@@ -72,18 +72,46 @@ const ImagesPage = () => {
 
       <div className="grid-gallery">
         {imagesQuery.data?.map((img) => (
-          <div className="thumb" key={img.path || img.name}>
-            <div className="tag outline">本地路径</div>
-            <div className="path">{img.path}</div>
-            {img.time && <div className="muted">{img.time}</div>}
-            <button className="button" onClick={() => translateMutation.mutate(img.path)} disabled={translateMutation.isPending}>
+          <div className="thumb" key={img.file_path || img.file_name}>
+            <div className="image-preview-container">
+              <img
+                src={`/api/file?path=${encodeURIComponent(img.file_path)}`}
+                alt={img.file_name}
+                className="image-preview"
+                onLoad={(e) => {
+                  console.log(`Image loaded successfully: ${img.file_path}`);
+                }}
+                onClick={() => {
+                  // Open image in new tab when clicked
+                  window.open(`/api/file?path=${encodeURIComponent(img.file_path)}`, '_blank');
+                }}
+                onError={(e) => {
+                  console.error(`Failed to load image: ${img.file_path}`, e);
+                  const target = e.target as HTMLImageElement;
+                  // 创建一个简单的占位图片（base64编码的SVG）
+                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjBGMEYwIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iOSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZpbGw9IiM4ODgiPkltYWdlPC90ZXh0Pgo8L3N2Zz4K';
+                }}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '150px',
+                  objectFit: 'contain',
+                  cursor: 'pointer',
+                  borderRadius: '8px',
+                  border: '1px solid #eee'
+                }}
+              />
+            </div>
+            <div className="image-info">
+              <div className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {img.file_name}
+              </div>
+              {img.time && <div className="muted">{img.time}</div>}
+            </div>
+            <button className="button" onClick={() => translateMutation.mutate(img.file_path)} disabled={translateMutation.isPending}>
               翻译并下载
             </button>
           </div>
         ))}
-      </div>
-      <div className="muted" style={{ marginTop: 8 }}>
-        缩略图需要静态文件服务；当前展示路径以便确认后端可访问。
       </div>
     </div>
   );

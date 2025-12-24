@@ -27,7 +27,7 @@ BOT_UIN = "2401262719"
 bot = BotClient()
 
 # ========== 数据目录 ==========
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ========== 与 Agent-Penguin 通信 ==========

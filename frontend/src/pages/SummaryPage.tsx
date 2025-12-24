@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { notifyChat, summarizeChat } from '../api/endpoints';
+import { useState, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { notifyChat, summarizeChat, fetchContacts } from '../api/endpoints';
 import Modal from '../components/Modal';
 import { useToast } from '../components/ToastProvider';
+import MarkdownRenderer from '../components/MarkdownRenderer';
+import type { Contact } from '../api/types';
 
 const SummaryPage = () => {
   const toast = useToast();
@@ -13,6 +15,12 @@ const SummaryPage = () => {
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [notifyList, setNotifyList] = useState<any[]>([]);
   const [targetLang, setTargetLang] = useState('Chinese');
+
+  // 添加联系人列表查询
+  const contactsQuery = useQuery({
+    queryKey: ['contacts-summary'],
+    queryFn: () => fetchContacts(),
+  });
 
   const summaryMutation = useMutation({
     mutationFn: () => summarizeChat(contactId, limit, targetLang),
@@ -40,13 +48,20 @@ const SummaryPage = () => {
           <h2 style={{ margin: '4px 0' }}>聊天摘要与提醒</h2>
         </div>
         <div className="form-row">
-          <input
-            className="input"
-            placeholder="输入 contact_id (群号或 QQ)"
+          <select
+            className="select"
             value={contactId}
             onChange={(e) => setContactId(e.target.value)}
             style={{ minWidth: 220 }}
-          />
+          >
+            <option value="">选择群聊或联系人</option>
+            {contactsQuery.isLoading && <option>加载中...</option>}
+            {contactsQuery.data?.map((contact: Contact) => (
+              <option key={contact.id} value={contact.id}>
+                {contact.group_name || contact.user_name || contact.id} ({contact.type})
+              </option>
+            ))}
+          </select>
           <input
             className="input"
             type="number"
@@ -79,7 +94,7 @@ const SummaryPage = () => {
       </div>
 
       <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="聊天摘要">
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{summaryText || '暂无内容'}</p>
+        {summaryText ? <MarkdownRenderer content={summaryText} /> : <p>暂无内容</p>}
       </Modal>
 
       <Modal open={notifyOpen} onClose={() => setNotifyOpen(false)} title="重要消息">

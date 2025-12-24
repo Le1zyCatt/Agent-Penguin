@@ -18,7 +18,7 @@ VECTOR_DB_PATH = os.path.join(DATA_DIR, "chat_vector_db")
 HISTORY_JSON_DIR = os.path.join(DATA_DIR, "server_history")
 
 # 3. 阿里云百炼 API Key
-DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-e4b45ce923944913baff2cc01cc0ab62") # 填入你的Key
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "sk-e2df5bf136ff4e88bbd03642aa38373b") # 填入你的Key
 
 # 4. PaddleOCR 服务配置
 OCR_HOST = "0.0.0.0"

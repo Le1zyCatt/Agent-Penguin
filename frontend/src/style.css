@@ -254,6 +254,8 @@ a {
   border-radius: 16px;
   position: relative;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .bubble.you {
@@ -269,9 +271,74 @@ a {
 }
 
 .bubble .meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--subtle);
   margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* More QQ-like chat bubbles */
+.chat-bubbles {
+  background: #f0f2f5;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  max-height: 70vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Enhanced bubble styling for QQ-like appearance */
+.bubble.other {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-top-left-radius: 4px;
+  padding: 12px 16px;
+  align-self: flex-start;
+  max-width: 75%;
+}
+
+.bubble.you {
+  background: #d2f0d6;
+  border: 1px solid #c2e8c6;
+  border-top-right-radius: 4px;
+  padding: 12px 16px;
+  align-self: flex-end;
+  max-width: 75%;
+}
+
+.bubble .meta {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* Add speech bubble tail effect */
+.bubble.other::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid #ffffff;
+}
+
+.bubble.you::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 8px solid #d2f0d6;
 }
 
 .tag {
@@ -329,6 +396,32 @@ a {
   font-size: 12px;
   color: var(--subtle);
   word-break: break-all;
+}
+
+/* Image preview styles */
+.image-preview {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.image-preview:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Chat bubble image styles */
+.bubble img {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.bubble img:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .modal {
