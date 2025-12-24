@@ -100,12 +100,20 @@ const SettingsPage = () => {
           {vectorDbQuery.isLoading && <div className="muted">加载中...</div>}
           {vectorDbQuery.data && (
             <>
-              <div className="muted">当前：{vectorDbQuery.data?.current_db || '未加载'}</div>
+              <div className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                当前：{vectorDbQuery.data?.current_db || '未加载'}
+              </div>
               <div className="form-row" style={{ marginTop: 8 }}>
-                <select className="select" value={selectedDb} onChange={(e) => setSelectedDb(e.target.value)}>
+                <select
+                  className="select"
+                  value={selectedDb}
+                  onChange={(e) => setSelectedDb(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                >
+                  <option value="" disabled>选择向量库</option>
                   {vectorDbQuery.data?.databases?.map((db: string) => (
                     <option key={db} value={db}>
-                      {db}
+                      {db.split('/').pop() || db} {/* 显示路径的最后一部分 */}
                     </option>
                   ))}
                 </select>

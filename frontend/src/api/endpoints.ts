@@ -11,6 +11,11 @@ export const searchChat = async (contact: string, query: string, k = 10) => {
   return res.data?.results ?? [];
 };
 
+export const getChatHistory = async (contact_id: string): Promise<ChatHistoryItem[]> => {
+  const res = await api.get('/api/chat/history', { params: { contact_id } });
+  return res.data?.history ?? [];
+};
+
 export const summarizeChat = async (contact_id: string, limit = 100, target_lang = 'Chinese') => {
   const form = new FormData();
   form.append('contact_id', contact_id);

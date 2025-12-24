@@ -1,6 +1,7 @@
 # server.py
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Query
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import shutil
 import os
@@ -100,6 +101,16 @@ async def lifespan(app: FastAPI):
             print(f"[System] ⚠️ 关闭OCR服务时发生异常: {e}")
 
 app = FastAPI(lifespan=lifespan, title="MangaTranslator & ChatRAG API")
+
+# 添加 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中应该限制为具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 os.makedirs(config.TEMP_DIR, exist_ok=True)
 
 
@@ -281,16 +292,13 @@ async def summarize_docs(
         # 2. 拼接所有文件的内容
         combined_text = ""
         file_names = []
-        
+
         for f in files:
             file_names.append(f['name'])
-            content = f.get('extracted_content', "")
-            
-            # 如果历史记录里没有提取过内容，现场读取
-            if not content:
-                print(f"[Doc] 正在实时读取文件: {f['path']}")
-                content = extract_text_from_file(f['path'], max_chars=2000)
-            
+            # 每次都重新读取文件，忽略历史记录中的 extracted_content
+            print(f"[Doc] 正在实时读取文件: {f['path']}")
+            content = extract_text_from_file(f['path'], max_chars=2000)
+
             combined_text += f"\n\n=== 文件名: {f['name']} (发送时间: {f['time']}) ===\n{content}"
 
         # 3. 构建 Prompt
@@ -302,11 +310,17 @@ async def summarize_docs(
         )
 
         # 4. 调用 AI
+        import time
         translator = msg_trans(config.DASHSCOPE_API_KEY)
+        print(f"[Doc] 正在发送给AI的提示词:\n{prompt[:500]}...")  # 只示前500个字符
+        start_time = time.time()
         summary = translator._call_api(prompt, mode="custom") # 使用 custom 模式透传 prompt
+        end_time = time.time()
+        print(f"[Doc] AI返回的摘要内容:\n{summary[:200]}...")  # 只示前200个字符
+        print(f"[Doc] AI调用耗时: {end_time - start_time:.2f} 秒")
 
         return {
-            "success": True, 
+            "success": True,
             "summary": summary,
             "scanned_files": file_names
         }
@@ -321,47 +335,69 @@ async def summarize_docs(
 # ===============================
 @app.post("/api/doc/translate")
 async def translate_doc(
-    file_path: str = Form(...), 
+    file_path: str = Form(...),
     target_lang: str = Form("Chinese")
 ):
     try:
-        if not os.path.exists(file_path):
+        print(f"[DocTranslate] 开始翻译文档，原始文件路径: {file_path}, 目标语言: {target_lang}")
+
+        # 检查 file_path 是否为 None 或 undefined 或空字符串
+        if not file_path or file_path == "undefined":
+            print(f"[DocTranslate] 错误：文件路径为空或未定义")
+            return {"success": False, "error": "文件路径不能为空"}
+
+        # 规范化路径，解决可能的 ./ 问题
+        normalized_path = os.path.normpath(file_path)
+        print(f"[DocTranslate] 规范化后的文件路径: {normalized_path}")
+
+        if not os.path.exists(normalized_path):
+            print(f"[DocTranslate] 错误：文件不存在: {normalized_path}")
             return {"success": False, "error": "文件不存在"}
-            
+
+        print(f"[DocTranslate] 文件存在，开始读取内容...")
         # 1. 读取文件原文
         original_text = extract_text_from_file(file_path, max_chars=5000)
-        
-        if not original_text:
+        print(f"[DocTranslate] 读取到的原文长度: {len(original_text) if original_text and not original_text.startswith('[') else 0}")
+
+        if not original_text or original_text.startswith('['):
+            print(f"[DocTranslate] 错误：无法读取文件内容或内容为空: {original_text}")
             return {"success": False, "error": "无法读取文件内容或内容为空"}
 
         # 2. 调用 AI 进行翻译
+        print(f"[DocTranslate] 开始调用AI进行翻译...")
         translator = msg_trans(config.DASHSCOPE_API_KEY)
         translated_text = translator._call_api(original_text, mode="translate", target_lang=target_lang)
-        
-        # 3. 【修改点】生成翻译后的 Word 文档
+        print(f"[DocTranslate] AI翻译完成，翻译后文本长度: {len(translated_text) if translated_text else 0}")
+
+        # 3. 生成翻译后的 Word 文档
         base_name = os.path.basename(file_path)
         name_no_ext = os.path.splitext(base_name)[0]
         output_filename = f"{name_no_ext}_translated.docx"
 
-        # === 修改开始：使用 config 中定义的临时目录或专门的输出目录 ===
-        # 确保 config.DATA_DIR 下有一个 outputs 文件夹
+        # 确保输出目录存在
         output_dir = config.TRANS_DOC_PATH
-        os.makedirs(output_dir, exist_ok=True) # 程序会自动创建这个目录，且通常拥有其权限
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"[DocTranslate] 输出目录: {output_dir}")
 
         output_path = os.path.join(output_dir, output_filename)
-        # === 修改结束 ===
-        
+        print(f"[DocTranslate] 输出路径: {output_path}")
+
         save_text_to_docx(translated_text, output_path)
-        
+        print(f"[DocTranslate] Word文档已保存: {output_path}")
+
         # 4. 返回文件流供前端下载
+        print(f"[DocTranslate] 准备返回文件: {output_path}")
         return FileResponse(
-            path=output_path, 
-            filename=output_filename, 
+            path=output_path,
+            filename=output_filename,
             media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
 
     except Exception as e:
-        print(f"文档翻译出错: {e}")
+        print(f"[DocTranslate] 文档翻译出错: {e}")
+        print(f"[DocTranslate] 错误类型: {type(e).__name__}")
+        import traceback
+        print(f"[DocTranslate] 错误堆栈: {traceback.format_exc()}")
         return {"success": False, "error": str(e)}
     
 # ===============================
@@ -638,6 +674,189 @@ async def get_current_vector_db():
             }
     except Exception as e:
         return {"success": False, "msg": str(e)}
+
+
+# ===============================
+# API 8: 文件服务 (Serve Local Files)
+# ===============================
+@app.get("/api/file")
+async def serve_local_file(path: str = Query(...)):
+    """
+    提供本地文件访问服务
+    注意：出于安全考虑，只允许访问特定目录下的文件
+    """
+    try:
+        # 解码路径
+        import urllib.parse
+        decoded_path = urllib.parse.unquote(path)
+        print(f"[FileService] Requested path: {decoded_path}")
+
+        # 安全检查：确保路径在允许的目录范围内
+        import os
+        allowed_dirs = [
+            config.DATA_DIR,  # data 目录
+            os.path.join(config.BASE_DIR, "ncatbot", "data"),  # ncatbot data 目录
+            os.path.join(config.BASE_DIR, "data", "received_images"),  # received_images 目录
+            os.path.join(config.BASE_DIR, "data", "translated_images"),  # translated_images 目录
+            os.path.join(config.BASE_DIR, "data", "server_history"),  # server_history 目录
+            config.TEMP_DIR,  # received_images directory
+            config.TRANS_IMG_PATH,  # translated_images directory
+            config.HISTORY_JSON_DIR,  # server_history directory
+            os.path.join(config.BASE_DIR, "data"),  # Main data directory
+        ]
+
+        # 规范化路径以防止路径遍历攻击
+        normalized_path = os.path.normpath(decoded_path)
+        print(f"[FileService] Normalized path: {normalized_path}")
+
+        # 检查路径是否在允许的目录范围内 - also check subdirectories
+        is_allowed = False
+        print(f"[FileService] Checking if path is in allowed directories...")
+        for allowed_dir in allowed_dirs:
+            try:
+                print(f"[FileService] Checking allowed dir: {allowed_dir}")
+                if os.path.exists(allowed_dir):
+                    # Use pathlib for more reliable path comparison
+                    from pathlib import Path
+                    allowed_path = Path(allowed_dir).resolve()
+                    file_path = Path(normalized_path).resolve()
+
+                    print(f"[FileService] Resolved allowed path: {allowed_path}, Resolved file path: {file_path}")
+
+                    # Check if the file path is within the allowed directory
+                    try:
+                        # This will raise ValueError if file_path is not relative to allowed_path
+                        file_path.relative_to(allowed_path)
+                        is_allowed = True
+                        print(f"[FileService] Path is allowed: {normalized_path} is within {allowed_dir}")
+                        break
+                    except ValueError:
+                        # Path is not within the allowed directory
+                        continue
+            except Exception as dir_error:
+                print(f"[FileService] Error checking directory {allowed_dir}: {dir_error}")
+                continue
+
+        # Additional check: if not in allowed directories, check other possible image locations
+        if not is_allowed:
+            # Check if the file exists in common image directories
+            possible_dirs = [
+                os.path.join(config.BASE_DIR, "ncatbot", "data"),  # ncatbot data directory
+                config.DATA_DIR,  # main data directory
+                config.TEMP_DIR,  # received images directory
+                config.TRANS_IMG_PATH,  # translated images directory
+            ]
+
+            for possible_dir in possible_dirs:
+                if os.path.exists(possible_dir):
+                    # Check if normalized_path is relative and exists in this directory
+                    if not os.path.isabs(normalized_path):
+                        potential_path = os.path.join(possible_dir, normalized_path)
+                        if os.path.exists(potential_path):
+                            # Verify it's within the allowed directory
+                            if os.path.commonpath([os.path.realpath(possible_dir), os.path.realpath(potential_path)]) == os.path.realpath(possible_dir):
+                                normalized_path = potential_path
+                                is_allowed = True
+                                print(f"[FileService] Found image in {possible_dir}: {normalized_path}")
+                                break
+                    else:
+                        # If it's an absolute path, check if it's under any of the allowed directories
+                        if os.path.commonpath([os.path.realpath(possible_dir), os.path.realpath(normalized_path)]) == os.path.realpath(possible_dir):
+                            is_allowed = True
+                            print(f"[FileService] Absolute path is in allowed directory {possible_dir}: {normalized_path}")
+                            break
+
+        if not is_allowed:
+            print(f"[FileService] Path not allowed: {normalized_path}")
+            # Let's also print all allowed directories for debugging
+            print(f"[FileService] Allowed directories: {allowed_dirs}")
+            return {"success": False, "error": "访问被拒绝：不允许访问该路径"}
+
+        if not os.path.exists(normalized_path):
+            print(f"[FileService] File does not exist: {normalized_path}")
+            print(f"[FileService] Available files in parent directory: {os.path.dirname(normalized_path)}")
+            try:
+                if os.path.exists(os.path.dirname(normalized_path)):
+                    print(f"[FileService] Files in parent: {os.listdir(os.path.dirname(normalized_path))}")
+            except Exception as e:
+                print(f"[FileService] Error listing parent directory: {e}")
+            return {"success": False, "error": "文件不存在"}
+
+        # 根据文件扩展名确定 MIME 类型
+        file_ext = os.path.splitext(normalized_path)[1].lower()
+        print(f"[FileService] File extension: {file_ext}")
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml'
+        }
+
+        mime_type = mime_types.get(file_ext, 'application/octet-stream')
+        print(f"[FileService] Determined MIME type: {mime_type}")
+
+        return FileResponse(
+            path=normalized_path,
+            media_type=mime_type,
+            headers={"Cache-Control": "public, max-age=3600"}  # 缓存1小时
+        )
+    except Exception as e:
+        print(f"[FileService] 文件服务出错: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+# ===============================
+# API 9: 获取聊天历史 (用于前端本地搜索)
+# ===============================
+@app.get("/api/chat/history")
+async def get_chat_history(contact_id: str):
+    """
+    获取指定联系人的完整聊天历史，用于前端本地搜索
+    """
+    try:
+        import os
+        import json
+
+        # 构建文件路径
+        file_path = os.path.join(config.HISTORY_JSON_DIR, f"{contact_id}.json")
+
+        if not os.path.exists(file_path):
+            return {"success": True, "history": []}
+
+        # 读取聊天历史
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # 返回完整的聊天历史，但只包含必要的字段用于搜索
+        simplified_history = []
+        for msg in data:
+            simplified_msg = {
+                "id": msg.get("id", ""),
+                "name": msg.get("name", "Unknown"),
+                "group_name": msg.get("group_name", ""),
+                "time": msg.get("time", ""),
+                "text": msg.get("text", ""),
+                "content_type": msg.get("content_type", "text"),
+                "extracted_content": msg.get("extracted_content", ""),
+                "local_path": msg.get("local_path", ""),
+                "msgtype": msg.get("msgtype", "")
+            }
+            simplified_history.append(simplified_msg)
+
+        return {
+            "success": True,
+            "history": simplified_history,
+            "count": len(simplified_history)
+        }
+
+    except Exception as e:
+        print(f"[GetHistory] 获取聊天历史出错: {e}")
+        return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":
