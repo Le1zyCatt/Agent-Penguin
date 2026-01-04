@@ -6,4 +6,6 @@
 ### RAG
 Langchain + m3e-small in order to fit into an app.
 ### Chat monitoring & message send
-Ncatbot Framework.
+Ncatbot Framework.  
+### About Picture Translation
+feishu doc: https://tcntuxkjik0v.feishu.cn/wiki/XrT5wMkrvidy8PkEnFZch1M7n2e?from=from_copylink  
