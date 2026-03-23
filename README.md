@@ -7,5 +7,8 @@
 Langchain + m3e-small in order to fit into an app.
 ### Chat monitoring & message send
 Ncatbot Framework.  
+### (Optional) RSA Encrypt
+https://github.com/Le1zyCatt/encrypt_ncatbot  
+Also a project using ncatbot, combining RSA realisation from scratch.  
 ### About Picture Translation
 feishu doc: https://tcntuxkjik0v.feishu.cn/wiki/XrT5wMkrvidy8PkEnFZch1M7n2e?from=from_copylink  
